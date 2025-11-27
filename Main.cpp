@@ -5,25 +5,24 @@
 #include <thread>
 #include <chrono>
 
-#include "Shader.h"   // NOVO
-#include "Util.h"     // Ostavljamo, iako ga sada ne koristimo
+#include "Shader.h"
+#include "Util.h"
 
-// Globalna promenljiva za deltaTime (u sekundama)
+// Global deltaTime (seconds)
 float deltaTime = 0.0f;
 
-// Pomoćna funkcija za lepo gašenje programa sa porukom
+// Helper: nice shutdown with message
 int endProgram(std::string message) {
     std::cout << message << std::endl;
     glfwTerminate();
     return -1;
 }
 
-// Pomoćna funkcija: ortho matrica (column-major, kako OpenGL očekuje)
+// Helper: orthographic matrix (column-major)
 void makeOrtho(float left, float right,
     float bottom, float top,
     float zNear, float zFar,
     float* outMat) {
-    // Reset na identitet
     for (int i = 0; i < 16; ++i) outMat[i] = 0.0f;
     outMat[0] = 2.0f / (right - left);
     outMat[5] = 2.0f / (top - bottom);
@@ -36,13 +35,13 @@ void makeOrtho(float left, float right,
 }
 
 struct Vertex {
-    float x, y;  // pozicija u pikselima
-    float u, v;  // tex koordinate
+    float x, y;  // position in pixels
+    float u, v;  // texture coordinates
 };
 
 int main()
 {
-    // Inicijalizacija GLFW i postavljanje na verziju 3 sa programabilnim pajplajnom
+    // GLFW init
     if (!glfwInit()) {
         return endProgram("GLFW nije uspeo da se inicijalizuje.");
     }
@@ -51,7 +50,7 @@ int main()
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 
-    // FULLSCREEN: uzmi primarni monitor i njegov video mode
+    // Fullscreen monitor
     GLFWmonitor* monitor = glfwGetPrimaryMonitor();
     if (!monitor) {
         return endProgram("Nisam uspeo da dobijem primarni monitor.");
@@ -65,12 +64,11 @@ int main()
     int screenWidth = mode->width;
     int screenHeight = mode->height;
 
-    // Formiranje prozora preko celog ekrana
     GLFWwindow* window = glfwCreateWindow(
         screenWidth,
         screenHeight,
         "Lift projekat",
-        monitor,          // FULLSCREEN
+        monitor,
         nullptr
     );
     if (window == NULL) {
@@ -79,21 +77,25 @@ int main()
 
     glfwMakeContextCurrent(window);
 
-    // Inicijalizacija GLEW
+    // GLEW init
     if (glewInit() != GLEW_OK) {
         return endProgram("GLEW nije uspeo da se inicijalizuje.");
     }
 
-    // Podesi viewport da pokrije ceo ekran
+    // Viewport
     glViewport(0, 0, screenWidth, screenHeight);
 
-    // Boja pozadine
+    // Background color
     glClearColor(0.1f, 0.1f, 0.15f, 1.0f);
 
-    // Kreiranje šejdera
+    // Enable alpha blending
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+    // Shader
     Shader shader("basic.vert", "basic.frag");
 
-    // Orto projekcija 0..width, 0..height
+    // Ortho 0..width, 0..height
     float projection[16];
     makeOrtho(0.0f, (float)screenWidth,
         0.0f, (float)screenHeight,
@@ -102,32 +104,32 @@ int main()
 
     shader.use();
     shader.setMat4("uProjection", projection);
-    shader.setInt("uTexture", 0); // samo da bude podešen, iako još ne koristimo teksturu
+    shader.setInt("uTexture", 0); // texture unit 0
 
-    // --- Geometrija: dva pravougaonika (leva i desna polovina ekrana) ---
-
+    // ------------------------
+    // Geometry: left and right halves
+    // ------------------------
     Vertex vertices[8];
 
-    // Leva polovina: od x=0 do x=screenWidth/2, po celoj visini
     float midX = screenWidth / 2.0f;
 
-    // Leva polovina (4 temena)
-    vertices[0] = { 0.0f,       0.0f,        0.0f, 0.0f }; // dole levo
-    vertices[1] = { midX,       0.0f,        1.0f, 0.0f }; // dole desno
-    vertices[2] = { midX,  (float)screenHeight, 1.0f, 1.0f }; // gore desno
-    vertices[3] = { 0.0f,  (float)screenHeight, 0.0f, 1.0f }; // gore levo
+    // Left half
+    vertices[0] = { 0.0f,               0.0f,                0.0f, 0.0f }; // bottom-left
+    vertices[1] = { midX,               0.0f,                1.0f, 0.0f }; // bottom-right
+    vertices[2] = { midX,        (float)screenHeight,        1.0f, 1.0f }; // top-right
+    vertices[3] = { 0.0f,        (float)screenHeight,        0.0f, 1.0f }; // top-left
 
-    // Desna polovina (4 temena)
-    vertices[4] = { midX,       0.0f,        0.0f, 0.0f }; // dole levo
-    vertices[5] = { (float)screenWidth, 0.0f,        1.0f, 0.0f }; // dole desno
-    vertices[6] = { (float)screenWidth, (float)screenHeight, 1.0f, 1.0f }; // gore desno
-    vertices[7] = { midX,  (float)screenHeight, 0.0f, 1.0f }; // gore levo
+    // Right half
+    vertices[4] = { midX,               0.0f,                0.0f, 0.0f }; // bottom-left
+    vertices[5] = { (float)screenWidth, 0.0f,                1.0f, 0.0f }; // bottom-right
+    vertices[6] = { (float)screenWidth, (float)screenHeight, 1.0f, 1.0f }; // top-right
+    vertices[7] = { midX,        (float)screenHeight,        0.0f, 1.0f }; // top-left
 
     unsigned int indices[12] = {
-        // Leva polovina
+        // Left
         0, 1, 2,
         2, 3, 0,
-        // Desna polovina
+        // Right
         4, 5, 6,
         6, 7, 4
     };
@@ -139,15 +141,13 @@ int main()
 
     glBindVertexArray(VAO);
 
-    // VBO
     glBindBuffer(GL_ARRAY_BUFFER, VBO);
     glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
 
-    // EBO
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW);
 
-    // Pozicija (location = 0)
+    // position (location = 0)
     glVertexAttribPointer(
         0,
         2,
@@ -158,7 +158,7 @@ int main()
     );
     glEnableVertexAttribArray(0);
 
-    // Tex koordinate (location = 1)
+    // tex coords (location = 1)
     glVertexAttribPointer(
         1,
         2,
@@ -171,58 +171,120 @@ int main()
 
     glBindVertexArray(0);
 
+    // ------------------------
+    // Overlay quad (top-left corner) for signature
+    // ------------------------
+    Vertex overlayVertices[4];
+    unsigned int overlayIndices[6] = { 0, 1, 2, 2, 3, 0 };
+
+    float margin = 20.0f;
+    float overlayWidth = 200.0f;  // prilagodi dimenzijama PNG-a
+    float overlayHeight = 80.0f;   // prilagodi dimenzijama PNG-a
+
+    float x0 = margin;
+    float y1 = screenHeight - margin;
+    float y0 = y1 - overlayHeight;
+    float x1 = x0 + overlayWidth;
+
+    overlayVertices[0] = { x0, y0, 0.0f, 0.0f }; // bottom-left
+    overlayVertices[1] = { x1, y0, 1.0f, 0.0f }; // bottom-right
+    overlayVertices[2] = { x1, y1, 1.0f, 1.0f }; // top-right
+    overlayVertices[3] = { x0, y1, 0.0f, 1.0f }; // top-left
+
+    unsigned int overlayVAO, overlayVBO, overlayEBO;
+    glGenVertexArrays(1, &overlayVAO);
+    glGenBuffers(1, &overlayVBO);
+    glGenBuffers(1, &overlayEBO);
+
+    glBindVertexArray(overlayVAO);
+
+    glBindBuffer(GL_ARRAY_BUFFER, overlayVBO);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(overlayVertices), overlayVertices, GL_STATIC_DRAW);
+
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, overlayEBO);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(overlayIndices), overlayIndices, GL_STATIC_DRAW);
+
+    glVertexAttribPointer(
+        0,
+        2,
+        GL_FLOAT,
+        GL_FALSE,
+        sizeof(Vertex),
+        (void*)0
+    );
+    glEnableVertexAttribArray(0);
+
+    glVertexAttribPointer(
+        1,
+        2,
+        GL_FLOAT,
+        GL_FALSE,
+        sizeof(Vertex),
+        (void*)(2 * sizeof(float))
+    );
+    glEnableVertexAttribArray(1);
+
+    glBindVertexArray(0);
+
+    // Load signature texture (adjust path if needed)
+    unsigned int overlayTexture = loadImageToTexture("textures/ime.png");
+
     // FPS limiter
     const double TARGET_FPS = 75.0;
-    const double TARGET_FRAME_TIME = 1.0 / TARGET_FPS; // ~0.013333s po frejmu
+    const double TARGET_FRAME_TIME = 1.0 / TARGET_FPS;
 
-    // GLAVNA PETLJA
+    // Main loop
     while (!glfwWindowShouldClose(window))
     {
         double frameStartTime = glfwGetTime();
 
-        // ESC gasi program
         if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS) {
             glfwSetWindowShouldClose(window, true);
         }
 
-        // Čišćenje bafera
         glClear(GL_COLOR_BUFFER_BIT);
 
-        // Crtanje scene
         shader.use();
-        glBindVertexArray(VAO);
 
-        // Leva polovina – panel (npr. tamno crvena)
-        shader.setVec4("uColor", 0.4f, 0.1f, 0.15f, 1.0f);
+        // left half – panel
+        glBindVertexArray(VAO);
         shader.setInt("uUseTexture", 0);
+        shader.setVec4("uColor", 0.25f, 0.25f, 0.30f, 1.0f);
         glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, (void*)(0));
 
-        // Desna polovina – zgrada (svetlija siva/plava)
-        shader.setVec4("uColor", 0.3f, 0.3f, 0.4f, 1.0f);
+        // right half – building
         shader.setInt("uUseTexture", 0);
+        shader.setVec4("uColor", 0.1f, 0.15f, 0.35f, 1.0f);
         glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, (void*)(6 * sizeof(unsigned int)));
+
+        // overlay – signature with alpha
+        if (overlayTexture != 0) {
+            glActiveTexture(GL_TEXTURE0);
+            glBindTexture(GL_TEXTURE_2D, overlayTexture);
+
+            shader.setInt("uUseTexture", 1);
+            shader.setVec4("uColor", 1.0f, 1.0f, 1.0f, 1.0f);
+
+            glBindVertexArray(overlayVAO);
+            glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, (void*)0);
+        }
 
         glBindVertexArray(0);
 
-        // Zamena bafera i obrada događaja
         glfwSwapBuffers(window);
         glfwPollEvents();
 
-        // FPS limiter
         double frameEndTime = glfwGetTime();
         double frameDuration = frameEndTime - frameStartTime;
 
         if (frameDuration < TARGET_FRAME_TIME) {
             double sleepTime = TARGET_FRAME_TIME - frameDuration;
             std::this_thread::sleep_for(std::chrono::duration<double>(sleepTime));
-
             frameEndTime = glfwGetTime();
             frameDuration = frameEndTime - frameStartTime;
         }
 
         deltaTime = static_cast<float>(frameDuration);
-        // Debug: možeš da proveriš FPS
-        // std::cout << "FPS: " << (1.0 / frameDuration) << std::endl;
     }
 
     glfwTerminate();

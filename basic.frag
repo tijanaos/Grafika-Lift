@@ -3,17 +3,18 @@
 in vec2 TexCoord;
 out vec4 FragColor;
 
-uniform vec4 uColor;        // Osnovna boja
-uniform sampler2D uTexture; // Za kasnije, kad dodamo teksture
-uniform bool uUseTexture;   // Da li koristimo teksturu ili ne
+uniform vec4 uColor;
+uniform sampler2D uTexture;
+uniform bool uUseTexture;
 
 void main()
 {
-    vec4 baseColor = uColor;
+    vec4 color = uColor;
 
-    if (uUseTexture) {
-        baseColor = texture(uTexture, TexCoord);
+    if (uUseTexture)
+    {
+        color = texture(uTexture, TexCoord);
     }
 
-    FragColor = baseColor;
+    FragColor = color;
 }
