@@ -5,7 +5,8 @@
 #include <thread>
 #include <chrono>
 
-#include "Util.h"
+#include "Shader.h"   // NOVO
+#include "Util.h"     // Ostavljamo, iako ga sada ne koristimo
 
 // Globalna promenljiva za deltaTime (u sekundama)
 float deltaTime = 0.0f;
@@ -16,6 +17,28 @@ int endProgram(std::string message) {
     glfwTerminate();
     return -1;
 }
+
+// Pomoćna funkcija: ortho matrica (column-major, kako OpenGL očekuje)
+void makeOrtho(float left, float right,
+    float bottom, float top,
+    float zNear, float zFar,
+    float* outMat) {
+    // Reset na identitet
+    for (int i = 0; i < 16; ++i) outMat[i] = 0.0f;
+    outMat[0] = 2.0f / (right - left);
+    outMat[5] = 2.0f / (top - bottom);
+    outMat[10] = -2.0f / (zFar - zNear);
+    outMat[15] = 1.0f;
+
+    outMat[12] = -(right + left) / (right - left);
+    outMat[13] = -(top + bottom) / (top - bottom);
+    outMat[14] = -(zFar + zNear) / (zFar - zNear);
+}
+
+struct Vertex {
+    float x, y;  // pozicija u pikselima
+    float u, v;  // tex koordinate
+};
 
 int main()
 {
@@ -47,7 +70,7 @@ int main()
         screenWidth,
         screenHeight,
         "Lift projekat",
-        monitor,          // FULLSCREEN: ovde prosledjujemo monitor
+        monitor,          // FULLSCREEN
         nullptr
     );
     if (window == NULL) {
@@ -64,8 +87,89 @@ int main()
     // Podesi viewport da pokrije ceo ekran
     glViewport(0, 0, screenWidth, screenHeight);
 
-    // Boja pozadine (ovo možemo kasnije menjati)
+    // Boja pozadine
     glClearColor(0.1f, 0.1f, 0.15f, 1.0f);
+
+    // Kreiranje šejdera
+    Shader shader("basic.vert", "basic.frag");
+
+    // Orto projekcija 0..width, 0..height
+    float projection[16];
+    makeOrtho(0.0f, (float)screenWidth,
+        0.0f, (float)screenHeight,
+        -1.0f, 1.0f,
+        projection);
+
+    shader.use();
+    shader.setMat4("uProjection", projection);
+    shader.setInt("uTexture", 0); // samo da bude podešen, iako još ne koristimo teksturu
+
+    // --- Geometrija: dva pravougaonika (leva i desna polovina ekrana) ---
+
+    Vertex vertices[8];
+
+    // Leva polovina: od x=0 do x=screenWidth/2, po celoj visini
+    float midX = screenWidth / 2.0f;
+
+    // Leva polovina (4 temena)
+    vertices[0] = { 0.0f,       0.0f,        0.0f, 0.0f }; // dole levo
+    vertices[1] = { midX,       0.0f,        1.0f, 0.0f }; // dole desno
+    vertices[2] = { midX,  (float)screenHeight, 1.0f, 1.0f }; // gore desno
+    vertices[3] = { 0.0f,  (float)screenHeight, 0.0f, 1.0f }; // gore levo
+
+    // Desna polovina (4 temena)
+    vertices[4] = { midX,       0.0f,        0.0f, 0.0f }; // dole levo
+    vertices[5] = { (float)screenWidth, 0.0f,        1.0f, 0.0f }; // dole desno
+    vertices[6] = { (float)screenWidth, (float)screenHeight, 1.0f, 1.0f }; // gore desno
+    vertices[7] = { midX,  (float)screenHeight, 0.0f, 1.0f }; // gore levo
+
+    unsigned int indices[12] = {
+        // Leva polovina
+        0, 1, 2,
+        2, 3, 0,
+        // Desna polovina
+        4, 5, 6,
+        6, 7, 4
+    };
+
+    unsigned int VAO, VBO, EBO;
+    glGenVertexArrays(1, &VAO);
+    glGenBuffers(1, &VBO);
+    glGenBuffers(1, &EBO);
+
+    glBindVertexArray(VAO);
+
+    // VBO
+    glBindBuffer(GL_ARRAY_BUFFER, VBO);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
+
+    // EBO
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW);
+
+    // Pozicija (location = 0)
+    glVertexAttribPointer(
+        0,
+        2,
+        GL_FLOAT,
+        GL_FALSE,
+        sizeof(Vertex),
+        (void*)0
+    );
+    glEnableVertexAttribArray(0);
+
+    // Tex koordinate (location = 1)
+    glVertexAttribPointer(
+        1,
+        2,
+        GL_FLOAT,
+        GL_FALSE,
+        sizeof(Vertex),
+        (void*)(2 * sizeof(float))
+    );
+    glEnableVertexAttribArray(1);
+
+    glBindVertexArray(0);
 
     // FPS limiter
     const double TARGET_FPS = 75.0;
@@ -74,43 +178,51 @@ int main()
     // GLAVNA PETLJA
     while (!glfwWindowShouldClose(window))
     {
-        // Vreme pocetka frejma
         double frameStartTime = glfwGetTime();
 
-        // ESC treba da ugasi program
+        // ESC gasi program
         if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS) {
             glfwSetWindowShouldClose(window, true);
         }
 
-        // Čišćenje bafera pre crtanja
+        // Čišćenje bafera
         glClear(GL_COLOR_BUFFER_BIT);
 
-        // (Za sada ništa ne crtamo – i dalje je crn ekran)
+        // Crtanje scene
+        shader.use();
+        glBindVertexArray(VAO);
+
+        // Leva polovina – panel (npr. tamno crvena)
+        shader.setVec4("uColor", 0.4f, 0.1f, 0.15f, 1.0f);
+        shader.setInt("uUseTexture", 0);
+        glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, (void*)(0));
+
+        // Desna polovina – zgrada (svetlija siva/plava)
+        shader.setVec4("uColor", 0.3f, 0.3f, 0.4f, 1.0f);
+        shader.setInt("uUseTexture", 0);
+        glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, (void*)(6 * sizeof(unsigned int)));
+
+        glBindVertexArray(0);
 
         // Zamena bafera i obrada događaja
         glfwSwapBuffers(window);
         glfwPollEvents();
 
-        // Koliko je ovaj frejm trajao do sada
+        // FPS limiter
         double frameEndTime = glfwGetTime();
         double frameDuration = frameEndTime - frameStartTime;
 
-        // Ako je frejm bio brži od TARGET_FRAME_TIME, uspavaj nit
         if (frameDuration < TARGET_FRAME_TIME) {
             double sleepTime = TARGET_FRAME_TIME - frameDuration;
-            // sleepTime je u sekundama (double), pretvara se u chrono trajanje
             std::this_thread::sleep_for(std::chrono::duration<double>(sleepTime));
 
-            // Posle spavanja, ažuriraj vreme kraja i trajanje frejma
             frameEndTime = glfwGetTime();
             frameDuration = frameEndTime - frameStartTime;
         }
 
-        // Na kraju frejma upiši deltaTime (u sekundama)
         deltaTime = static_cast<float>(frameDuration);
-
-        // (Opcija za debug: recimo da ispišeš FPS jednom u par sekundi)
-        // std::cout << "FPS: " << 1.0 / frameDuration << "\n";
+        // Debug: možeš da proveriš FPS
+        // std::cout << "FPS: " << (1.0 / frameDuration) << std::endl;
     }
 
     glfwTerminate();
