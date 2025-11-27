@@ -1,0 +1,17 @@
+# Ignorisi privremene fajlove Visual Studija
+.vs/
+.vscode/
+
+# Ignorisi build foldere (tu su .exe i .obj fajlovi)
+x64/
+Debug/
+Release/
+
+# Ignorisi korisnicka podesavanja (tvoji brejkpointi, layout prozora...)
+*.user
+*.suo
+*.opensdf
+*.sdf
+
+# Ignorisi skinute pakete (oni se skidaju automatski preko packages.config)
+packages/
