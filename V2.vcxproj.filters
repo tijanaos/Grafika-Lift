@@ -94,5 +94,11 @@
     <Image Include="textures\person.png">
       <Filter>Resource Files</Filter>
     </Image>
+    <Image Include="textures\brick_wall.png">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="textures\small_brick_wall.png">
+      <Filter>Resource Files</Filter>
+    </Image>
   </ItemGroup>
 </Project>

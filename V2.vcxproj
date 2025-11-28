@@ -144,6 +144,7 @@
     <ClCompile Include="Util.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <Image Include="textures\brick_wall.png" />
     <Image Include="textures\close.png" />
     <Image Include="textures\elevator_door.png" />
     <Image Include="textures\elevator_open.png" />
@@ -159,6 +160,7 @@
     <Image Include="textures\ime.png" />
     <Image Include="textures\open.png" />
     <Image Include="textures\person.png" />
+    <Image Include="textures\small_brick_wall.png" />
     <Image Include="textures\stop.png" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

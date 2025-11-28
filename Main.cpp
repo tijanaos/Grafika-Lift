@@ -784,6 +784,7 @@ int main()
     unsigned int elevatorTexture = loadImageToTexture("textures/elevator_open.png");
     unsigned int doorTexture = loadImageToTexture("textures/elevator_door.png");
     unsigned int personTexture = loadImageToTexture("textures/person.png");
+    unsigned int buildingTexture = loadImageToTexture("textures/small_brick_wall.png");
 
 
     // FPS limiter
@@ -1159,16 +1160,38 @@ int main()
         shader.setVec4("uColor", 0.25f, 0.25f, 0.30f, 1.0f);
         glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, (void*)(0));
 
-        // right half – building
-        shader.setInt("uUseTexture", 0);
-        shader.setVec4("uColor", 0.1f, 0.15f, 0.35f, 1.0f);
+        // right half – building (tekstura cigli)
+        glBindVertexArray(VAO);
+
+        if (buildingTexture != 0) {
+            shader.setInt("uUseTexture", 1);                 // koristimo teksturu
+            shader.setVec4("uColor", 1.0f, 1.0f, 1.0f, 1.0f); // bez tintovanja
+            glActiveTexture(GL_TEXTURE0);
+            glBindTexture(GL_TEXTURE_2D, buildingTexture);
+        }
+        else {
+            // fallback – ako se tekstura ne učita, ostavi jednobojno
+            shader.setInt("uUseTexture", 0);
+            shader.setVec4("uColor", 0.1f, 0.15f, 0.35f, 1.0f);
+        }
+
         glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, (void*)(6 * sizeof(unsigned int)));
 
-        // elevator shaft pozadina
+
+        // elevator shaft pozadina – sivkasto i polutransparentno
         glBindVertexArray(shaftVAO);
         shader.setInt("uUseTexture", 0);
-        shader.setVec4("uColor", 0.05f, 0.07f, 0.18f, 1.0f); // malo tamniji ton od zgrade
+
+        // svetlosiva boja + alpha ~35%
+        shader.setVec4("uColor",
+            0.6f,  // R
+            0.6f,  // G
+            0.65f, // B
+            0.35f  // A  (manje od 1.0 → providno)
+        );
+
         glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, (void*)0);
+
 
 
         // spratovi (platforme)
