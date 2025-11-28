@@ -816,8 +816,26 @@ int main()
         cWasPressed = cIsPressed;
 
         if (cJustPressed && !person.inElevator && inFrontOfElevator) {
-            if (elevator.currentFloor != personFloorIndex &&
-                !isFloorAlreadyRequested(personFloorIndex)) {
+
+            // 1) Lift je već na mom spratu → samo upravljamo vratima
+            if (elevator.currentFloor == personFloorIndex) {
+
+                // Ako su vrata zatvorena / se zatvaraju → ponovo ih otvori
+                if (elevator.state == ElevatorState::Idle ||
+                    elevator.state == ElevatorState::DoorsClosing) {
+
+                    elevator.state = ElevatorState::DoorsOpening;
+                    elevator.doorOpenRatio = 0.0f;
+                    elevator.doorOpenTimer = BASE_DOOR_OPEN_TIME;
+                    doorExtendedThisCycle = false;
+                }
+                // Ako su već otvorena – resetuj timer (da ostanu još malo)
+                else if (elevator.state == ElevatorState::DoorsOpen) {
+                    elevator.doorOpenTimer = BASE_DOOR_OPEN_TIME;
+                }
+            }
+            // 2) Lift NIJE na mom spratu → standardno ubaci zahtev
+            else if (!isFloorAlreadyRequested(personFloorIndex)) {
 
                 if (!hasTargetFloor && elevator.state == ElevatorState::Idle) {
                     // lift miruje – kreni odmah ka tom spratu
@@ -832,6 +850,7 @@ int main()
                 std::cout << "Lift pozvan na sprat: " << personFloorIndex << std::endl;
             }
         }
+
 
 
         // 6) Ako su vrata otvorena i lift je na spratu osobe, dozvoli ulazak
@@ -937,6 +956,18 @@ int main()
         // ======================
         // Etapa 7 – kretanje lifta i vrata
         // ======================
+
+        // Ako smo u Idle, a nemamo aktivan ciljni sprat,
+        // ali postoji nešto u redu čekanja, preuzmi sledeći sprat iz reda.
+        if (elevator.state == ElevatorState::Idle &&
+            !hasTargetFloor &&
+            !floorQueue.empty()) {
+
+            targetFloor = floorQueue.front();
+            floorQueue.erase(floorQueue.begin());
+            hasTargetFloor = true;
+        }
+
 
         // Ako je lift u mirovanju i imamo zadat novi ciljni sprat – kreni
         if (elevator.state == ElevatorState::Idle &&
