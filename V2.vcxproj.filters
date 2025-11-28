@@ -85,5 +85,14 @@
     <Image Include="textures\stop.png">
       <Filter>Resource Files</Filter>
     </Image>
+    <Image Include="textures\elevator_door.png">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="textures\elevator_open.png">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="textures\person.png">
+      <Filter>Resource Files</Filter>
+    </Image>
   </ItemGroup>
 </Project>
