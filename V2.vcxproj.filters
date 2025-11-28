@@ -49,5 +49,41 @@
     <Image Include="textures\ime.png">
       <Filter>Resource Files</Filter>
     </Image>
+    <Image Include="textures\floor_PR.png">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="textures\floor_SU.png">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="textures\floor1.png">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="textures\floor2.png">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="textures\floor3.png">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="textures\floor4.png">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="textures\floor5.png">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="textures\floor6.png">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="textures\close.png">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="textures\fan.png">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="textures\open.png">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="textures\stop.png">
+      <Filter>Resource Files</Filter>
+    </Image>
   </ItemGroup>
 </Project>

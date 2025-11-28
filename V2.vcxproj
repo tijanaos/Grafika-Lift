@@ -144,7 +144,19 @@
     <ClCompile Include="Util.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <Image Include="textures\close.png" />
+    <Image Include="textures\fan.png" />
+    <Image Include="textures\floor1.png" />
+    <Image Include="textures\floor2.png" />
+    <Image Include="textures\floor3.png" />
+    <Image Include="textures\floor4.png" />
+    <Image Include="textures\floor5.png" />
+    <Image Include="textures\floor6.png" />
+    <Image Include="textures\floor_PR.png" />
+    <Image Include="textures\floor_SU.png" />
     <Image Include="textures\ime.png" />
+    <Image Include="textures\open.png" />
+    <Image Include="textures\stop.png" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

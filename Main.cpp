@@ -5,13 +5,16 @@
 #include <thread>
 #include <chrono>
 #include <cmath>
-
+#include <vector>
 
 #include "Shader.h"
 #include "Util.h"
 
 // Global deltaTime (seconds)
 float deltaTime = 0.0f;
+const float DOOR_ANIM_DURATION = 0.3f;   // vreme animacije otvaranja/zatvaranja
+const float BASE_DOOR_OPEN_TIME = 5.0f;  // osnovno vreme dok su vrata otvorena
+
 
 // Helper: nice shutdown with message
 int endProgram(std::string message) {
@@ -65,7 +68,8 @@ enum class ElevatorState {
     Moving,
     DoorsOpening,
     DoorsOpen,
-    DoorsClosing
+    DoorsClosing,
+    Stopped
 };
 
 struct Elevator {
@@ -89,6 +93,23 @@ struct Person {
     float height;
     bool  inElevator;
 };
+
+enum class ButtonType {
+    Floor,
+    OpenDoor,
+    CloseDoor,
+    Stop,
+    Ventilation
+};
+
+struct Button {
+    float x0, y0;
+    float x1, y1;
+    ButtonType type;
+    int floorIndex;  // za sprat dugme, inače -1
+    bool pressed;
+};
+
 
 int main()
 {
@@ -485,9 +506,21 @@ int main()
     // BRZINA osobe (pikseli u sekundi)
     float personSpeed = 350.0f;
 
-    // Ciljni sprat lifta – za sada samo jedan zahtev u isto vreme
+    // Ciljni sprat lifta – aktivni sprat ka kom se lift trenutno kreće
     int targetFloor = elevator.currentFloor;
     bool hasTargetFloor = false;
+
+    // Red čekanja spratova koje treba obići (za panel + pozivanje C)
+    std::vector<int> floorQueue;
+
+    // Pomoćna funkcija: da li je sprat već tražen (aktuelni cilj ili u redu)
+    auto isFloorAlreadyRequested = [&](int floorIdx) {
+        if (hasTargetFloor && targetFloor == floorIdx) return true;
+        for (int f : floorQueue) {
+            if (f == floorIdx) return true;
+        }
+        return false;
+        };
 
     Vertex personVertices[4];
     unsigned int personIndices[6] = { 0, 1, 2, 2, 3, 0 };
@@ -536,6 +569,169 @@ int main()
 
     glBindVertexArray(0);
 
+    // =========================
+    // Panel dugmići (spratovi, vrata, STOP, ventilacija)
+    // =========================
+    std::vector<Button> buttons;
+    buttons.reserve(12);
+
+    int floorButtonIndex[FLOOR_COUNT];
+    int openButtonIndex = -1;
+    int closeButtonIndex = -1;
+    int stopButtonIndex = -1;
+    int ventilationButtonIndex = -1;
+
+    // =========================
+    // Tekst oznake spratova (SU, PR, 1-6) preko tekstura
+    // =========================
+    unsigned int floorLabelTextures[FLOOR_COUNT];
+    floorLabelTextures[FLOOR_SU] = loadImageToTexture("textures/floor_SU.png");
+    floorLabelTextures[FLOOR_PR] = loadImageToTexture("textures/floor_PR.png");
+    floorLabelTextures[FLOOR_1] = loadImageToTexture("textures/floor1.png");
+    floorLabelTextures[FLOOR_2] = loadImageToTexture("textures/floor2.png");
+    floorLabelTextures[FLOOR_3] = loadImageToTexture("textures/floor3.png");
+    floorLabelTextures[FLOOR_4] = loadImageToTexture("textures/floor4.png");
+    floorLabelTextures[FLOOR_5] = loadImageToTexture("textures/floor5.png");
+    floorLabelTextures[FLOOR_6] = loadImageToTexture("textures/floor6.png");
+    // Teksture za specijalna dugmad (OPEN, CLOSE, STOP, VENT)
+    unsigned int openBtnTex = loadImageToTexture("textures/open.png");
+    unsigned int closeBtnTex = loadImageToTexture("textures/close.png");
+    unsigned int stopBtnTex = loadImageToTexture("textures/stop.png");
+    unsigned int ventBtnTex = loadImageToTexture("textures/fan.png");
+
+    Vertex labelVertices[4];
+    unsigned int labelIndices[6] = { 0, 1, 2, 2, 3, 0 };
+    unsigned int labelVAO, labelVBO, labelEBO;
+
+    glGenVertexArrays(1, &labelVAO);
+    glGenBuffers(1, &labelVBO);
+    glGenBuffers(1, &labelEBO);
+
+    glBindVertexArray(labelVAO);
+
+    glBindBuffer(GL_ARRAY_BUFFER, labelVBO);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(labelVertices), nullptr, GL_DYNAMIC_DRAW);
+
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, labelEBO);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(labelIndices), labelIndices, GL_STATIC_DRAW);
+
+    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)0);
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)(2 * sizeof(float)));
+    glEnableVertexAttribArray(1);
+
+    glBindVertexArray(0);
+
+
+    bool ventilationOn = false;
+    bool doorExtendedThisCycle = false; // da OPEN produžava vreme samo jednom po ciklusu
+
+    // Jedan VAO/VBO za sva dugmad – punićemo ga za svako posebno
+    Vertex buttonVertices[4];
+    unsigned int buttonIndices[6] = { 0, 1, 2, 2, 3, 0 };
+    unsigned int buttonVAO, buttonVBO, buttonEBO;
+
+    glGenVertexArrays(1, &buttonVAO);
+    glGenBuffers(1, &buttonVBO);
+    glGenBuffers(1, &buttonEBO);
+
+    glBindVertexArray(buttonVAO);
+
+    glBindBuffer(GL_ARRAY_BUFFER, buttonVBO);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(buttonVertices), nullptr, GL_DYNAMIC_DRAW);
+
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, buttonEBO);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(buttonIndices), buttonIndices, GL_STATIC_DRAW);
+
+    glVertexAttribPointer(
+        0,
+        2,
+        GL_FLOAT,
+        GL_FALSE,
+        sizeof(Vertex),
+        (void*)0
+    );
+    glEnableVertexAttribArray(0);
+
+    glVertexAttribPointer(
+        1,
+        2,
+        GL_FLOAT,
+        GL_FALSE,
+        sizeof(Vertex),
+        (void*)(2 * sizeof(float))
+    );
+    glEnableVertexAttribArray(1);
+
+    glBindVertexArray(0);
+
+    // Layout dugmadi na levoj polovini
+    float panelCenterX = midX / 2.0f;
+    float btnWidth = 120.0f;
+    float btnHeight = 60.0f;
+    float rowSpacing = btnHeight + 10.0f;
+    float colOffset = 70.0f; // horizontalni razmak leve/desne kolone
+
+    float colLeftX0 = panelCenterX - colOffset - btnWidth * 0.5f;
+    float colLeftX1 = colLeftX0 + btnWidth;
+    float colRightX0 = panelCenterX + colOffset - btnWidth * 0.5f;
+    float colRightX1 = colRightX0 + btnWidth;
+
+    float floorStartY = (float)screenHeight - 160.0f;
+
+    auto addButton = [&](float x0b, float yBottom, float x1b, float yTopb,
+        ButtonType type, int floorIdx) -> int {
+            Button b;
+            b.x0 = x0b;
+            b.y0 = yBottom;
+            b.x1 = x1b;
+            b.y1 = yTopb;
+            b.type = type;
+            b.floorIndex = floorIdx;
+            b.pressed = false;
+            buttons.push_back(b);
+            return (int)buttons.size() - 1;
+        };
+
+    // Sprat dugmići u 4 reda x 2 kolone:
+    // red 0: SU (levo), PR (desno)
+    float yTop0 = floorStartY;
+    float yBot0 = yTop0 - btnHeight;
+    floorButtonIndex[FLOOR_SU] = addButton(colLeftX0, yBot0, colLeftX1, yTop0, ButtonType::Floor, FLOOR_SU);
+    floorButtonIndex[FLOOR_PR] = addButton(colRightX0, yBot0, colRightX1, yTop0, ButtonType::Floor, FLOOR_PR);
+
+    // red 1: 1, 2
+    float yTop1 = floorStartY - rowSpacing;
+    float yBot1 = yTop1 - btnHeight;
+    floorButtonIndex[FLOOR_1] = addButton(colLeftX0, yBot1, colLeftX1, yTop1, ButtonType::Floor, FLOOR_1);
+    floorButtonIndex[FLOOR_2] = addButton(colRightX0, yBot1, colRightX1, yTop1, ButtonType::Floor, FLOOR_2);
+
+    // red 2: 3, 4
+    float yTop2 = floorStartY - 2.0f * rowSpacing;
+    float yBot2 = yTop2 - btnHeight;
+    floorButtonIndex[FLOOR_3] = addButton(colLeftX0, yBot2, colLeftX1, yTop2, ButtonType::Floor, FLOOR_3);
+    floorButtonIndex[FLOOR_4] = addButton(colRightX0, yBot2, colRightX1, yTop2, ButtonType::Floor, FLOOR_4);
+
+    // red 3: 5, 6
+    float yTop3 = floorStartY - 3.0f * rowSpacing;
+    float yBot3 = yTop3 - btnHeight;
+    floorButtonIndex[FLOOR_5] = addButton(colLeftX0, yBot3, colLeftX1, yTop3, ButtonType::Floor, FLOOR_5);
+    floorButtonIndex[FLOOR_6] = addButton(colRightX0, yBot3, colRightX1, yTop3, ButtonType::Floor, FLOOR_6);
+
+    // Kontrolna dugmad (OPEN/CLOSE, STOP/VENT) ispod
+    float ctlTop1 = floorStartY - 4.5f * rowSpacing;
+    float ctlBot1 = ctlTop1 - btnHeight;
+
+    openButtonIndex = addButton(colLeftX0, ctlBot1, colLeftX1, ctlTop1, ButtonType::OpenDoor, -1);
+    closeButtonIndex = addButton(colRightX0, ctlBot1, colRightX1, ctlTop1, ButtonType::CloseDoor, -1);
+
+    float ctlTop2 = ctlTop1 - rowSpacing;
+    float ctlBot2 = ctlTop2 - btnHeight;
+
+    stopButtonIndex = addButton(colLeftX0, ctlBot2, colLeftX1, ctlTop2, ButtonType::Stop, -1);
+    ventilationButtonIndex = addButton(colRightX0, ctlBot2, colRightX1, ctlTop2, ButtonType::Ventilation, -1);
+
+
 
     // Load signature texture (adjust path if needed)
     unsigned int overlayTexture = loadImageToTexture("textures/ime.png");
@@ -554,11 +750,11 @@ int main()
         }
 
         // ======================
-// Etapa 6+7 – kretanje osobe, pozivanje lifta,
-//             ulazak/izlazak i osnova za kretanje lifta
-// ======================
+        // Etapa 6+7 – kretanje osobe, pozivanje lifta,
+        //             ulazak/izlazak i osnova za kretanje lifta
+        // ======================
 
-// 1) Kretanje osobe: A = levo, W = desno
+        // 1) Kretanje osobe: A = levo, W = desno
         float dx = 0.0f;
         if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) {
             dx -= personSpeed * deltaTime;
@@ -620,12 +816,23 @@ int main()
         cWasPressed = cIsPressed;
 
         if (cJustPressed && !person.inElevator && inFrontOfElevator) {
-            if (elevator.currentFloor != personFloorIndex) {
-                targetFloor = personFloorIndex;
-                hasTargetFloor = true;
-                std::cout << "Lift pozvan na sprat: " << targetFloor << std::endl;
+            if (elevator.currentFloor != personFloorIndex &&
+                !isFloorAlreadyRequested(personFloorIndex)) {
+
+                if (!hasTargetFloor && elevator.state == ElevatorState::Idle) {
+                    // lift miruje – kreni odmah ka tom spratu
+                    targetFloor = personFloorIndex;
+                    hasTargetFloor = true;
+                }
+                else {
+                    // već se vozi – ubaci sprat u red
+                    floorQueue.push_back(personFloorIndex);
+                }
+
+                std::cout << "Lift pozvan na sprat: " << personFloorIndex << std::endl;
             }
         }
+
 
         // 6) Ako su vrata otvorena i lift je na spratu osobe, dozvoli ulazak
         if (!person.inElevator && doorsAreOpen && elevatorAtPersonsFloor && inFrontOfElevator) {
@@ -646,17 +853,97 @@ int main()
                 person.y = floors[personFloorIndex].yTop;
             }
         }
+        // ======================
+        // Panel – obrada klika mišem
+        // ======================
+
+        double mouseX, mouseY;
+        glfwGetCursorPos(window, &mouseX, &mouseY);
+        float mouseXF = static_cast<float>(mouseX);
+        float mouseYGL = static_cast<float>(screenHeight) - static_cast<float>(mouseY);
+
+        static bool leftMouseWasDown = false;
+        bool leftMouseDown = (glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS);
+        bool leftMouseClick = leftMouseDown && !leftMouseWasDown;
+        leftMouseWasDown = leftMouseDown;
+
+        if (leftMouseClick && person.inElevator) {
+            for (size_t i = 0; i < buttons.size(); ++i) {
+                Button& b = buttons[i];
+
+                if (mouseXF >= b.x0 && mouseXF <= b.x1 &&
+                    mouseYGL >= b.y0 && mouseYGL <= b.y1) {
+
+                    switch (b.type) {
+                    case ButtonType::Floor: {
+                        int fIdx = b.floorIndex;
+                        if (fIdx >= 0 && fIdx < FLOOR_COUNT &&
+                            !isFloorAlreadyRequested(fIdx) &&
+                            fIdx != elevator.currentFloor) {
+
+                            if (!hasTargetFloor && elevator.state == ElevatorState::Idle) {
+                                targetFloor = fIdx;
+                                hasTargetFloor = true;
+                            }
+                            else {
+                                floorQueue.push_back(fIdx);
+                            }
+                            b.pressed = true;
+                        }
+                        break;
+                    }
+
+                    case ButtonType::OpenDoor:
+                        // produži OPEN jednom po ciklusu
+                        if (elevator.state == ElevatorState::DoorsOpen && !doorExtendedThisCycle) {
+                            elevator.doorOpenTimer += BASE_DOOR_OPEN_TIME;
+                            doorExtendedThisCycle = true;
+                        }
+                        break;
+
+                    case ButtonType::CloseDoor:
+                        // odmah počni zatvaranje ako su vrata otvorena
+                        if (elevator.state == ElevatorState::DoorsOpen) {
+                            elevator.doorOpenTimer = 0.0f;
+                            elevator.state = ElevatorState::DoorsClosing;
+                        }
+                        break;
+
+                    case ButtonType::Stop:
+                        if (!b.pressed) {
+                            b.pressed = true;
+                            if (elevator.state == ElevatorState::Moving) {
+                                elevator.state = ElevatorState::Stopped;
+                            }
+                        }
+                        else {
+                            b.pressed = false;
+                            if (elevator.state == ElevatorState::Stopped) {
+                                elevator.state = ElevatorState::Idle;
+                            }
+                        }
+                        break;
+
+                    case ButtonType::Ventilation:
+                        ventilationOn = !ventilationOn;
+                        b.pressed = ventilationOn;
+                        break;
+                    }
+                }
+            }
+        }
+
 
         // ======================
         // Etapa 7 – kretanje lifta i vrata
         // ======================
-        const float DOOR_ANIM_DURATION = 0.3f;  // vreme otvaranja/zatvaranja animacije
-        const float DOOR_OPEN_TIME = 5.0f;      // koliko dugo vrata ostaju otvorena
 
         // Ako je lift u mirovanju i imamo zadat novi ciljni sprat – kreni
-        if (elevator.state == ElevatorState::Idle && hasTargetFloor && targetFloor != elevator.currentFloor) {
+        if (elevator.state == ElevatorState::Idle &&
+            hasTargetFloor && targetFloor != elevator.currentFloor) {
             elevator.state = ElevatorState::Moving;
         }
+
 
         switch (elevator.state) {
         case ElevatorState::Moving:
@@ -672,12 +959,37 @@ int main()
 
                 elevator.y = targetY;
                 elevator.currentFloor = targetFloor;
-                hasTargetFloor = false;
+
+                // otpusti dugme za ovaj sprat (ako postoji)
+                if (targetFloor >= 0 && targetFloor < FLOOR_COUNT) {
+                    int fb = floorButtonIndex[targetFloor];
+                    if (fb >= 0 && fb < (int)buttons.size()) {
+                        buttons[fb].pressed = false;
+                    }
+                }
+
+                // ventilacija se gasi kada lift stigne do sledećeg sprata
+                ventilationOn = false;
+                if (ventilationButtonIndex >= 0 && ventilationButtonIndex < (int)buttons.size()) {
+                    buttons[ventilationButtonIndex].pressed = false;
+                }
+
+                // uzmi sledeći sprat iz reda, ako postoji
+                if (!floorQueue.empty()) {
+                    targetFloor = floorQueue.front();
+                    floorQueue.erase(floorQueue.begin());
+                    hasTargetFloor = true;
+                }
+                else {
+                    hasTargetFloor = false;
+                }
 
                 // započni animaciju otvaranja
                 elevator.state = ElevatorState::DoorsOpening;
                 elevator.doorOpenRatio = 0.0f;
+                doorExtendedThisCycle = false;
             }
+
             break;
         }
         case ElevatorState::DoorsOpening:
@@ -685,7 +997,8 @@ int main()
             if (elevator.doorOpenRatio >= 1.0f) {
                 elevator.doorOpenRatio = 1.0f;
                 elevator.state = ElevatorState::DoorsOpen;
-                elevator.doorOpenTimer = DOOR_OPEN_TIME;
+                elevator.doorOpenTimer = BASE_DOOR_OPEN_TIME;
+                doorExtendedThisCycle = false; // novi ciklus otvaranja
             }
             break;
 
@@ -704,7 +1017,9 @@ int main()
                 elevator.state = ElevatorState::Idle;
             }
             break;
-
+        case ElevatorState::Stopped:
+            // zaustavljen, ništa se ne dešava
+            break;
         case ElevatorState::Idle:
         default:
             // ništa
@@ -785,6 +1100,188 @@ int main()
         shader.setInt("uUseTexture", 0);
         shader.setVec4("uColor", 0.9f, 0.4f, 0.4f, 1.0f); // crvenkasti “čovek”
         glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, (void*)0);
+
+        // panel dugmići
+        glBindVertexArray(buttonVAO);
+        shader.setInt("uUseTexture", 0);
+
+        for (size_t i = 0; i < buttons.size(); ++i) {
+            const Button& b = buttons[i];
+
+            // da li je miš trenutno iznad dugmeta
+            bool hovered = (person.inElevator &&
+                mouseXF >= b.x0 && mouseXF <= b.x1 &&
+                mouseYGL >= b.y0 && mouseYGL <= b.y1);
+
+            // 1) Okvir – malo veći pravougaonik
+            float border = 3.0f;
+            buttonVertices[0] = { b.x0 - border, b.y0 - border, 0.0f, 0.0f };
+            buttonVertices[1] = { b.x1 + border, b.y0 - border, 1.0f, 0.0f };
+            buttonVertices[2] = { b.x1 + border, b.y1 + border, 1.0f, 1.0f };
+            buttonVertices[3] = { b.x0 - border, b.y1 + border, 0.0f, 1.0f };
+
+            glBindBuffer(GL_ARRAY_BUFFER, buttonVBO);
+            glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(buttonVertices), buttonVertices);
+
+            // tamni okvir
+            shader.setVec4("uColor", 0.05f, 0.05f, 0.08f, 1.0f);
+            glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, (void*)0);
+
+            // 2) Unutrašnjost dugmeta
+            buttonVertices[0] = { b.x0, b.y0, 0.0f, 0.0f };
+            buttonVertices[1] = { b.x1, b.y0, 1.0f, 0.0f };
+            buttonVertices[2] = { b.x1, b.y1, 1.0f, 1.0f };
+            buttonVertices[3] = { b.x0, b.y1, 0.0f, 1.0f };
+
+            glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(buttonVertices), buttonVertices);
+
+            // bazne boje po tipu
+            float r, g, bCol;
+            if (b.type == ButtonType::Floor) {
+                r = 0.55f; g = 0.55f; bCol = 0.65f;        // normalno
+                if (b.pressed) {                          // sprat tražen → svetlije
+                    r += 0.3f; g += 0.3f; bCol += 0.3f;
+                }
+            }
+            else if (b.type == ButtonType::Stop) {
+                r = 0.7f; g = 0.2f; bCol = 0.2f;
+                if (b.pressed) {                          // aktivan STOP → jako crveno
+                    r = 0.95f; g = 0.25f; bCol = 0.25f;
+                }
+            }
+            else if (b.type == ButtonType::Ventilation) {
+                r = 0.25f; g = 0.6f; bCol = 0.25f;
+                if (b.pressed) {                          // uključen → svetlo zeleno
+                    r = 0.35f; g = 0.95f; bCol = 0.35f;
+                }
+            }
+            else { // Open / Close
+                r = 0.55f; g = 0.55f; bCol = 0.4f;
+                if (b.pressed) {                          // (ako želiš da ikad setuješ pressed)
+                    r += 0.25f; g += 0.25f; bCol += 0.1f;
+                }
+            }
+
+            // hover efekat – malo posvetli
+            if (hovered) {
+                r += 0.1f; g += 0.1f; bCol += 0.1f;
+            }
+
+            // clamp na [0,1]
+            if (r > 1.0f) r = 1.0f;
+            if (g > 1.0f) g = 1.0f;
+            if (bCol > 1.0f) bCol = 1.0f;
+
+            shader.setVec4("uColor", r, g, bCol, 1.0f);
+            glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, (void*)0);
+        }
+
+        // =========================
+// Ikonice za specijalna dugmad (OPEN, CLOSE, STOP, VENT)
+// =========================
+        glBindVertexArray(labelVAO);
+        shader.setInt("uUseTexture", 1);
+        shader.setVec4("uColor", 1.0f, 1.0f, 1.0f, 1.0f);
+
+        auto drawIconOnButton = [&](int btnIndex, unsigned int tex,
+            float iconW, float iconH)
+            {
+                if (btnIndex < 0 || btnIndex >= (int)buttons.size()) return;
+                if (tex == 0) return; // tekstura nije učitana
+
+                const Button& b = buttons[btnIndex];
+
+                // centar dugmeta
+                float cx = 0.5f * (b.x0 + b.x1);
+                float cy = 0.5f * (b.y0 + b.y1);
+
+                float x0i = cx - iconW * 0.5f;
+                float x1i = cx + iconW * 0.5f;
+                float y0i = cy - iconH * 0.5f;
+                float y1i = cy + iconH * 0.5f;
+
+                labelVertices[0] = { x0i, y0i, 0.0f, 0.0f };
+                labelVertices[1] = { x1i, y0i, 1.0f, 0.0f };
+                labelVertices[2] = { x1i, y1i, 1.0f, 1.0f };
+                labelVertices[3] = { x0i, y1i, 0.0f, 1.0f };
+
+                glActiveTexture(GL_TEXTURE0);
+                glBindTexture(GL_TEXTURE_2D, tex);
+
+                glBindBuffer(GL_ARRAY_BUFFER, labelVBO);
+                glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(labelVertices), labelVertices);
+
+                glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, (void*)0);
+            };
+
+        // dimenzije ikonica unutar dugmeta (manje od samog dugmeta)
+        float iconW = 50.0f;
+        float iconH = 28.0f;
+
+        drawIconOnButton(openButtonIndex, openBtnTex, iconW, iconH);
+        drawIconOnButton(closeButtonIndex, closeBtnTex, iconW, iconH);
+        drawIconOnButton(stopButtonIndex, stopBtnTex, iconW, iconH);
+        drawIconOnButton(ventilationButtonIndex, ventBtnTex, iconW, iconH);
+
+
+        // oznake spratova: na panelu (u dugmetu) i pored platformi
+        glBindVertexArray(labelVAO);
+        shader.setInt("uUseTexture", 1);
+        shader.setVec4("uColor", 1.0f, 1.0f, 1.0f, 1.0f);
+
+        float labelWidthPanel = 36.0f;
+        float labelHeightPanel = 26.0f;
+        float labelWidthSide = 40.0f;
+        float labelHeightSide = 28.0f;
+
+        for (int f = 0; f < FLOOR_COUNT; ++f) {
+            unsigned int tex = floorLabelTextures[f];
+            if (tex == 0) continue; // tekstura nije učitana
+
+            glActiveTexture(GL_TEXTURE0);
+            glBindTexture(GL_TEXTURE_2D, tex);
+
+            // 1) Tekst u dugmetu na panelu
+            int btnIdx = floorButtonIndex[f];
+            if (btnIdx >= 0) {
+                const Button& b = buttons[btnIdx];
+
+                float cx = 0.5f * (b.x0 + b.x1);
+                float cy = 0.5f * (b.y0 + b.y1);
+
+                float x0p = cx - labelWidthPanel * 0.5f;
+                float x1p = cx + labelWidthPanel * 0.5f;
+                float y0p = cy - labelHeightPanel * 0.5f;
+                float y1p = cy + labelHeightPanel * 0.5f;
+
+                labelVertices[0] = { x0p, y0p, 0.0f, 0.0f };
+                labelVertices[1] = { x1p, y0p, 1.0f, 0.0f };
+                labelVertices[2] = { x1p, y1p, 1.0f, 1.0f };
+                labelVertices[3] = { x0p, y1p, 0.0f, 1.0f };
+
+                glBindBuffer(GL_ARRAY_BUFFER, labelVBO);
+                glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(labelVertices), labelVertices);
+                glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, (void*)0);
+            }
+
+            // 2) Tekst pored spratova na desnoj polovini
+            float centerY = 0.5f * (floors[f].yBottom + floors[f].yTop);
+            float lx = corridorLeftX - 50.0f; // malo levo od platforme
+
+            float x0s = lx - labelWidthSide * 0.5f;
+            float x1s = lx + labelWidthSide * 0.5f;
+            float y0s = centerY - labelHeightSide * 0.5f;
+            float y1s = centerY + labelHeightSide * 0.5f;
+
+            labelVertices[0] = { x0s, y0s, 0.0f, 0.0f };
+            labelVertices[1] = { x1s, y0s, 1.0f, 0.0f };
+            labelVertices[2] = { x1s, y1s, 1.0f, 1.0f };
+            labelVertices[3] = { x0s, y1s, 0.0f, 1.0f };
+
+            glBindBuffer(GL_ARRAY_BUFFER, labelVBO);
+            glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(labelVertices), labelVertices);
+            glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, (void*)0);
+        }
 
 
         // overlay – signature with alpha
