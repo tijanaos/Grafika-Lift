@@ -60,13 +60,27 @@ struct Floor {
     float yTop;    // gornja ivica platforme
 };
 
+enum class ElevatorState {
+    Idle,
+    Moving,
+    DoorsOpening,
+    DoorsOpen,
+    DoorsClosing
+};
+
 struct Elevator {
     float x;      // donji levi ugao kabine
     float y;      // donji levi ugao kabine
     float width;
     float height;
-    int   currentFloor; // indeks u [0..7]
+    int   currentFloor;   // indeks u [0..7]
+
+    ElevatorState state;  // trenutno stanje
+    float speed;          // brzina kretanja (pikseli/s)
+    float doorOpenTimer;  // preostalo vreme dok su vrata otvorena
+    float doorOpenRatio;  // 0 = zatvorena, 1 = potpuno otvorena
 };
+
 
 struct Person {
     float x;      // donji levi ugao “čoveka”
@@ -295,6 +309,13 @@ int main()
     elevator.currentFloor = FLOOR_1;  // 0=SU,1=PR,2=1,...
     elevator.y = floors[elevator.currentFloor].yTop; // stoji "na" platformi tog sprata
 
+    // dodatna inicijalizacija stanja lifta
+    elevator.state = ElevatorState::Idle;
+    elevator.speed = 260.0f;         // pikseli u sekundi (podesi po želji)
+    elevator.doorOpenTimer = 0.0f;
+    elevator.doorOpenRatio = 0.0f;   // 0 = vrata potpuno zatvorena
+
+
     // 3) Koridor (platforme spratova) – prostiru se od sredine desne polovine do malo pre lifta
     //midX definisan gore
     float corridorLeftX = midX + 60.0f;
@@ -408,14 +429,55 @@ int main()
 
     glBindVertexArray(0);
 
+    // 4b) Vrata lifta – pravougaonik koji se animira
+    Vertex doorVertices[4];
+    unsigned int doorIndices[6] = { 0, 1, 2, 2, 3, 0 };
+
+    unsigned int doorVAO, doorVBO, doorEBO;
+    glGenVertexArrays(1, &doorVAO);
+    glGenBuffers(1, &doorVBO);
+    glGenBuffers(1, &doorEBO);
+
+    glBindVertexArray(doorVAO);
+
+    glBindBuffer(GL_ARRAY_BUFFER, doorVBO);
+    // podatke ćemo slati dinamički u glavnoj petlji
+    glBufferData(GL_ARRAY_BUFFER, sizeof(doorVertices), nullptr, GL_DYNAMIC_DRAW);
+
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, doorEBO);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(doorIndices), doorIndices, GL_STATIC_DRAW);
+
+    glVertexAttribPointer(
+        0,
+        2,
+        GL_FLOAT,
+        GL_FALSE,
+        sizeof(Vertex),
+        (void*)0
+    );
+    glEnableVertexAttribArray(0);
+
+    glVertexAttribPointer(
+        1,
+        2,
+        GL_FLOAT,
+        GL_FALSE,
+        sizeof(Vertex),
+        (void*)(2 * sizeof(float))
+    );
+    glEnableVertexAttribArray(1);
+
+    glBindVertexArray(0);
+
+
     // 5) Osoba – mali pravougaonik na PR (prizemlju), van lifta
     Person person{};
     person.width = 30.0f;
     person.height = 60.0f;
     person.inElevator = false;
 
-    const int PERSON_FLOOR = FLOOR_PR;
-    float pBottom = floors[PERSON_FLOOR].yTop; // stoji na platformi prizemlja
+    int personFloorIndex = FLOOR_PR;                 // osoba je na pocetku u prizemlju
+    float pBottom = floors[personFloorIndex].yTop;   // stoji na platformi tog sprata
     // nek bude negde levo od lifta
     person.x = corridorLeftX + 40.0f;
     person.y = pBottom;
@@ -423,7 +485,7 @@ int main()
     // BRZINA osobe (pikseli u sekundi)
     float personSpeed = 350.0f;
 
-    // Ciljni sprat lifta (za etapu 6 samo ga čuvamo, kretanje je etapa 7)
+    // Ciljni sprat lifta – za sada samo jedan zahtev u isto vreme
     int targetFloor = elevator.currentFloor;
     bool hasTargetFloor = false;
 
@@ -492,7 +554,8 @@ int main()
         }
 
         // ======================
-// Etapa 6 – kretanje osobe i pozivanje lifta
+// Etapa 6+7 – kretanje osobe, pozivanje lifta,
+//             ulazak/izlazak i osnova za kretanje lifta
 // ======================
 
 // 1) Kretanje osobe: A = levo, W = desno
@@ -506,31 +569,49 @@ int main()
 
         person.x += dx;
 
-        // 2) Ograniči osobu na prizemlje – između leve ivice koridora i leve ivice lifta
+        // 2) Osnovni opseg hodnika na spratu na kom je osoba (kada je VAN lifta)
         float corridorMinX = corridorLeftX + 10.0f;
-        float corridorMaxX = elevator.x - person.width; // da ne uđe u kabinu u ovoj etapi
+        float corridorMaxXOutside = elevator.x - person.width; // “ispred” vrata
 
-        if (person.x < corridorMinX) person.x = corridorMinX;
-        if (person.x > corridorMaxX) person.x = corridorMaxX;
+        if (!person.inElevator) {
+            if (person.x < corridorMinX) person.x = corridorMinX;
+            if (person.x > corridorMaxXOutside) person.x = corridorMaxXOutside;
+
+            // osoba je van lifta – visina je određena spratom
+            person.y = floors[personFloorIndex].yTop;
+        }
+        else {
+            // osoba je u kabini – ograniči je na unutrašnjost kabine
+            float insideMinX = elevator.x + 5.0f;
+            float insideMaxX = elevator.x + elevator.width - person.width - 5.0f;
+            if (person.x < insideMinX) person.x = insideMinX;
+            if (person.x > insideMaxX) person.x = insideMaxX;
+
+            // uvek stoji na “podu” lifta
+            person.y = elevator.y;
+        }
 
         // 3) Ažuriraj verteks podatke za osobu
-        float pLeft = person.x;
-        float pRight = person.x + person.width;
+        float pLeftCur = person.x;
+        float pRightCur = person.x + person.width;
         float pBottomCur = person.y;
-        float pTop = pBottomCur + person.height;
+        float pTopCur = pBottomCur + person.height;
 
-        personVertices[0].x = pLeft;   personVertices[0].y = pBottomCur;
-        personVertices[1].x = pRight;  personVertices[1].y = pBottomCur;
-        personVertices[2].x = pRight;  personVertices[2].y = pTop;
-        personVertices[3].x = pLeft;   personVertices[3].y = pTop;
+        personVertices[0].x = pLeftCur;   personVertices[0].y = pBottomCur;
+        personVertices[1].x = pRightCur;  personVertices[1].y = pBottomCur;
+        personVertices[2].x = pRightCur;  personVertices[2].y = pTopCur;
+        personVertices[3].x = pLeftCur;   personVertices[3].y = pTopCur;
 
         glBindBuffer(GL_ARRAY_BUFFER, personVBO);
         glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(personVertices), personVertices);
 
         // 4) Da li je osoba "ispred" lifta (dodiruje levu ivicu kabine)?
-        float personRight = pRight;
+        float personRight = pRightCur;
         float elevatorLeft = elevator.x;
         bool inFrontOfElevator = std::fabs(personRight - elevatorLeft) < 2.0f; // tolerancija ~2px
+
+        bool doorsAreOpen = (elevator.state == ElevatorState::DoorsOpen);
+        bool elevatorAtPersonsFloor = (elevator.currentFloor == personFloorIndex);
 
         // 5) Taster C – pozivanje lifta (edge detect: tek kad se pritisne)
         static bool cWasPressed = false;
@@ -539,15 +620,131 @@ int main()
         cWasPressed = cIsPressed;
 
         if (cJustPressed && !person.inElevator && inFrontOfElevator) {
-            if (elevator.currentFloor != PERSON_FLOOR) {
-                targetFloor = PERSON_FLOOR;
+            if (elevator.currentFloor != personFloorIndex) {
+                targetFloor = personFloorIndex;
                 hasTargetFloor = true;
                 std::cout << "Lift pozvan na sprat: " << targetFloor << std::endl;
             }
         }
 
+        // 6) Ako su vrata otvorena i lift je na spratu osobe, dozvoli ulazak
+        if (!person.inElevator && doorsAreOpen && elevatorAtPersonsFloor && inFrontOfElevator) {
+            person.inElevator = true;
+            // pozicioniramo osobu unutar kabine
+            person.x = elevator.x + 10.0f;
+            person.y = elevator.y;
+        }
 
+        // 7) Ako je osoba u kabini i vrata su otvorena, dozvoli izlazak levo
+        if (person.inElevator && doorsAreOpen) {
+            float insideMinX = elevator.x + 5.0f;
+            // ako drži A i približi se levoj strani, izađe na hodnik
+            if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS && person.x <= insideMinX + 1.0f) {
+                person.inElevator = false;
+                personFloorIndex = elevator.currentFloor;                 // sada je na tom spratu
+                person.x = elevator.x - person.width;                     // odmah ispred vrata
+                person.y = floors[personFloorIndex].yTop;
+            }
+        }
+
+        // ======================
+        // Etapa 7 – kretanje lifta i vrata
+        // ======================
+        const float DOOR_ANIM_DURATION = 0.3f;  // vreme otvaranja/zatvaranja animacije
+        const float DOOR_OPEN_TIME = 5.0f;      // koliko dugo vrata ostaju otvorena
+
+        // Ako je lift u mirovanju i imamo zadat novi ciljni sprat – kreni
+        if (elevator.state == ElevatorState::Idle && hasTargetFloor && targetFloor != elevator.currentFloor) {
+            elevator.state = ElevatorState::Moving;
+        }
+
+        switch (elevator.state) {
+        case ElevatorState::Moving:
+        {
+            float targetY = floors[targetFloor].yTop;
+            float dir = (targetY > elevator.y) ? 1.0f : -1.0f;
+            float step = elevator.speed * deltaTime * dir;
+            elevator.y += step;
+
+            // da ne preskoči ciljni sprat
+            if ((dir > 0.0f && elevator.y >= targetY) ||
+                (dir < 0.0f && elevator.y <= targetY)) {
+
+                elevator.y = targetY;
+                elevator.currentFloor = targetFloor;
+                hasTargetFloor = false;
+
+                // započni animaciju otvaranja
+                elevator.state = ElevatorState::DoorsOpening;
+                elevator.doorOpenRatio = 0.0f;
+            }
+            break;
+        }
+        case ElevatorState::DoorsOpening:
+            elevator.doorOpenRatio += deltaTime / DOOR_ANIM_DURATION;
+            if (elevator.doorOpenRatio >= 1.0f) {
+                elevator.doorOpenRatio = 1.0f;
+                elevator.state = ElevatorState::DoorsOpen;
+                elevator.doorOpenTimer = DOOR_OPEN_TIME;
+            }
+            break;
+
+        case ElevatorState::DoorsOpen:
+            elevator.doorOpenTimer -= deltaTime;
+            if (elevator.doorOpenTimer <= 0.0f) {
+                elevator.doorOpenTimer = 0.0f;
+                elevator.state = ElevatorState::DoorsClosing;
+            }
+            break;
+
+        case ElevatorState::DoorsClosing:
+            elevator.doorOpenRatio -= deltaTime / DOOR_ANIM_DURATION;
+            if (elevator.doorOpenRatio <= 0.0f) {
+                elevator.doorOpenRatio = 0.0f;
+                elevator.state = ElevatorState::Idle;
+            }
+            break;
+
+        case ElevatorState::Idle:
+        default:
+            // ništa
+            break;
+        }
+
+        // 8) Ažuriraj verteks podatke za kabinu lifta (jer se y menja)
+        float eBottomCur = elevator.y;
+        float eTopCur = elevator.y + elevator.height;
+        float eLeftCur = elevator.x;
+        float eRightCur = elevator.x + elevator.width;
+
+        elevatorVertices[0].x = eLeftCur;   elevatorVertices[0].y = eBottomCur;
+        elevatorVertices[1].x = eRightCur;  elevatorVertices[1].y = eBottomCur;
+        elevatorVertices[2].x = eRightCur;  elevatorVertices[2].y = eTopCur;
+        elevatorVertices[3].x = eLeftCur;   elevatorVertices[3].y = eTopCur;
+
+        glBindBuffer(GL_ARRAY_BUFFER, elevatorVBO);
+        glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(elevatorVertices), elevatorVertices);
+
+        // 9) Ažuriraj verteks podatke za vrata na osnovu doorOpenRatio
+        float doorHeight = elevator.height * (1.0f - elevator.doorOpenRatio);
+        if (doorHeight < 0.0f) doorHeight = 0.0f;
+
+        float dBottom = elevator.y;
+        float dTop = elevator.y + doorHeight;
+        float dLeft = elevator.x;
+        float dRight = elevator.x + elevator.width;
+
+        doorVertices[0] = { dLeft,  dBottom, 0.0f, 0.0f };
+        doorVertices[1] = { dRight, dBottom, 1.0f, 0.0f };
+        doorVertices[2] = { dRight, dTop,    1.0f, 1.0f };
+        doorVertices[3] = { dLeft,  dTop,    0.0f, 1.0f };
+
+        glBindBuffer(GL_ARRAY_BUFFER, doorVBO);
+        glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(doorVertices), doorVertices);
+
+        // (sada ide glClear, crtanje itd.)
         glClear(GL_COLOR_BUFFER_BIT);
+
 
         shader.use();
 
@@ -573,6 +770,15 @@ int main()
         shader.setInt("uUseTexture", 0);
         shader.setVec4("uColor", 0.9f, 0.9f, 0.2f, 1.0f); // žućkasta kabina
         glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, (void*)0);
+
+        // vrata lifta – tamniji pravougaonik preko kabine
+        if (elevator.doorOpenRatio < 1.0f) { // kada su potpuno otvorena, gotovo da se ne vide
+            glBindVertexArray(doorVAO);
+            shader.setInt("uUseTexture", 0);
+            shader.setVec4("uColor", 0.2f, 0.2f, 0.3f, 1.0f);
+            glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, (void*)0);
+        }
+
 
         // osoba na prizemlju
         glBindVertexArray(personVAO);
