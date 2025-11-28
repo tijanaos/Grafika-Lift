@@ -667,10 +667,10 @@ int main()
 
     // Layout dugmadi na levoj polovini
     float panelCenterX = midX / 2.0f;
-    float btnWidth = 120.0f;
-    float btnHeight = 60.0f;
-    float rowSpacing = btnHeight + 10.0f;
-    float colOffset = 70.0f; // horizontalni razmak leve/desne kolone
+    float btnWidth = 160.0f;
+    float btnHeight = 80.0f;
+    float rowSpacing = btnHeight + 15.0f;
+    float colOffset = 90.0f; // horizontalni razmak leve/desne kolone
 
     float colLeftX0 = panelCenterX - colOffset - btnWidth * 0.5f;
     float colLeftX1 = colLeftX0 + btnWidth;
@@ -1246,8 +1246,8 @@ int main()
             };
 
         // dimenzije ikonica unutar dugmeta (manje od samog dugmeta)
-        float iconW = 50.0f;
-        float iconH = 28.0f;
+        float iconW = 0.6f * btnWidth;
+        float iconH = 0.4f * btnHeight;
 
         drawIconOnButton(openButtonIndex, openBtnTex, iconW, iconH);
         drawIconOnButton(closeButtonIndex, closeBtnTex, iconW, iconH);
@@ -1260,8 +1260,8 @@ int main()
         shader.setInt("uUseTexture", 1);
         shader.setVec4("uColor", 1.0f, 1.0f, 1.0f, 1.0f);
 
-        float labelWidthPanel = 36.0f;
-        float labelHeightPanel = 26.0f;
+        float labelWidthPanel = 0.45f * btnWidth;
+        float labelHeightPanel = 0.35f * btnHeight;
         float labelWidthSide = 40.0f;
         float labelHeightSide = 28.0f;
 
