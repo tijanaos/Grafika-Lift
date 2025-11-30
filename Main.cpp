@@ -94,6 +94,7 @@ struct Person {
     float width;
     float height;
     bool  inElevator;
+    bool  facingRight;
 };
 
 enum class ButtonType {
@@ -150,6 +151,9 @@ int main()
     }
 
     glfwMakeContextCurrent(window);
+
+    glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_HIDDEN);
+
 
     // GLEW init
     if (glewInit() != GLEW_OK) {
@@ -542,6 +546,8 @@ int main()
     person.height = elevator.height * 0.8f;       // čovek ~80% kabine
     person.width = person.height * 0.6f;         // proporcije tela
     person.inElevator = false;
+    person.facingRight = true;  // na pocetku neka gleda u desno
+
 
     int personFloorIndex = FLOOR_PR;                 // osoba je na pocetku u prizemlju
     float pBottom = floors[personFloorIndex].yTop;   // stoji na platformi tog sprata
@@ -644,6 +650,9 @@ int main()
     unsigned int closeBtnTex = loadImageToTexture("textures/close.png");
     unsigned int stopBtnTex = loadImageToTexture("textures/stop.png");
     unsigned int ventBtnTex = loadImageToTexture("textures/fan.png");
+    unsigned int cursorFanTexture = loadImageToTexture("textures/fan_cursor_black.png");
+    unsigned int cursorFanTexturePink = loadImageToTexture("textures/fan_cursor_pink2.png");
+
 
     Vertex labelVertices[4];
     unsigned int labelIndices[6] = { 0, 1, 2, 2, 3, 0 };
@@ -710,6 +719,48 @@ int main()
     glEnableVertexAttribArray(1);
 
     glBindVertexArray(0);
+
+    // =========================
+    // Custom kursor – propeler
+    // =========================
+    Vertex cursorVertices[4];
+    unsigned int cursorIndices[6] = { 0, 1, 2, 2, 3, 0 };
+
+    unsigned int cursorVAO, cursorVBO, cursorEBO;
+    glGenVertexArrays(1, &cursorVAO);
+    glGenBuffers(1, &cursorVBO);
+    glGenBuffers(1, &cursorEBO);
+
+    glBindVertexArray(cursorVAO);
+
+    glBindBuffer(GL_ARRAY_BUFFER, cursorVBO);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(cursorVertices), nullptr, GL_DYNAMIC_DRAW);
+
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, cursorEBO);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(cursorIndices), cursorIndices, GL_STATIC_DRAW);
+
+    glVertexAttribPointer(
+        0,
+        2,
+        GL_FLOAT,
+        GL_FALSE,
+        sizeof(Vertex),
+        (void*)0
+    );
+    glEnableVertexAttribArray(0);
+
+    glVertexAttribPointer(
+        1,
+        2,
+        GL_FLOAT,
+        GL_FALSE,
+        sizeof(Vertex),
+        (void*)(2 * sizeof(float))
+    );
+    glEnableVertexAttribArray(1);
+
+    glBindVertexArray(0);
+
 
     // Layout dugmadi na levoj polovini
     float panelCenterX = midX / 2.0f;
@@ -784,6 +835,7 @@ int main()
     unsigned int elevatorTexture = loadImageToTexture("textures/elevator_open.png");
     unsigned int doorTexture = loadImageToTexture("textures/elevator_door.png");
     unsigned int personTexture = loadImageToTexture("textures/person.png");
+    unsigned int personTextureLeft = loadImageToTexture("textures/person_left.png");
     unsigned int buildingTexture = loadImageToTexture("textures/small_brick_wall.png");
 
 
@@ -809,9 +861,11 @@ int main()
         float dx = 0.0f;
         if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) {
             dx -= personSpeed * deltaTime;
+            person.facingRight = false;
         }
         if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) {
             dx += personSpeed * deltaTime;
+            person.facingRight = true;
         }
 
         person.x += dx;
@@ -869,10 +923,10 @@ int main()
 
         if (cJustPressed && !person.inElevator && inFrontOfElevator) {
 
-            // 1) Lift je već na mom spratu → samo upravljamo vratima
+            // 1) Lift je vec na mom spratu -> samo upravljamo vratima
             if (elevator.currentFloor == personFloorIndex) {
 
-                // Ako su vrata zatvorena / se zatvaraju → ponovo ih otvori
+                // Ako su vrata zatvorena / se zatvaraju -> ponovo ih otvori
                 if (elevator.state == ElevatorState::Idle ||
                     elevator.state == ElevatorState::DoorsClosing) {
 
@@ -966,12 +1020,22 @@ int main()
                     }
 
                     case ButtonType::OpenDoor:
-                        // produži OPEN jednom po ciklusu
+                        // a) ako su vrata vec otvorena – produzi vreme, ali samo jednom u ovom ciklusu
                         if (elevator.state == ElevatorState::DoorsOpen && !doorExtendedThisCycle) {
                             elevator.doorOpenTimer += BASE_DOOR_OPEN_TIME;
                             doorExtendedThisCycle = true;
                         }
+                        // b) ako lift miruje (Idle) ili se vrata upravo zatvaraju – ponovo ih otvori
+                        else if (elevator.state == ElevatorState::Idle ||
+                            elevator.state == ElevatorState::DoorsClosing) {
+
+                            elevator.state = ElevatorState::DoorsOpening;
+                            elevator.doorOpenRatio = 0.0f;
+                            elevator.doorOpenTimer = BASE_DOOR_OPEN_TIME;
+                            doorExtendedThisCycle = false; // novi "ciklus" otvaranja
+                        }
                         break;
+
 
                     case ButtonType::CloseDoor:
                         // odmah počni zatvaranje ako su vrata otvorena
@@ -1202,18 +1266,30 @@ int main()
 
         auto drawPerson = [&]() {
             glBindVertexArray(personVAO);
-            if (personTexture != 0) {
+
+            // Izaberi teksturu na osnovu smera
+            unsigned int tex = 0;
+            if (person.facingRight) {
+                tex = personTexture;
+            }
+            else {
+                tex = personTextureLeft;
+            }
+
+            if (tex != 0) {
                 shader.setInt("uUseTexture", 1);
-                shader.setVec4("uColor", 1.0f, 1.0f, 1.0f, 1.0f);
+                shader.setVec4("uColor", 1.0f, 1.0f, 1.0f, 1.0f); // bez tintovanja
                 glActiveTexture(GL_TEXTURE0);
-                glBindTexture(GL_TEXTURE_2D, personTexture);
+                glBindTexture(GL_TEXTURE_2D, tex);
             }
             else {
                 shader.setInt("uUseTexture", 0);
-                shader.setVec4("uColor", 0.9f, 0.4f, 0.4f, 1.0f); // stari fallback
+                shader.setVec4("uColor", 0.9f, 0.4f, 0.4f, 1.0f); // fallback ako nešto failuje
             }
+
             glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, (void*)0);
             };
+
 
 
         // lift kabina
@@ -1456,6 +1532,42 @@ int main()
         }
 
         glBindVertexArray(0);
+
+
+        // Crtanje custom kursora – propeler
+        {
+            float cursorSize = 48.0f;
+
+            float x0c = mouseXF - cursorSize * 0.5f;
+            float x1c = mouseXF + cursorSize * 0.5f;
+            float y0c = mouseYGL - cursorSize * 0.5f;
+            float y1c = mouseYGL + cursorSize * 0.5f;
+
+            cursorVertices[0] = { x0c, y0c, 0.0f, 0.0f };
+            cursorVertices[1] = { x1c, y0c, 1.0f, 0.0f };
+            cursorVertices[2] = { x1c, y1c, 1.0f, 1.0f };
+            cursorVertices[3] = { x0c, y1c, 0.0f, 1.0f };
+
+            glBindBuffer(GL_ARRAY_BUFFER, cursorVBO);
+            glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(cursorVertices), cursorVertices);
+
+            glBindVertexArray(cursorVAO);
+
+            shader.use();
+            unsigned int tex = ventilationOn ? cursorFanTexturePink : cursorFanTexture;
+
+            shader.setInt("uUseTexture", 1);
+            shader.setVec4("uColor", 1.0f, 1.0f, 1.0f, 1.0f);
+            glActiveTexture(GL_TEXTURE0);
+            glBindTexture(GL_TEXTURE_2D, tex);
+
+            glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, (void*)0);
+
+            glBindVertexArray(0);
+        }
+
+
+
 
         glfwSwapBuffers(window);
         glfwPollEvents();

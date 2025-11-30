@@ -100,5 +100,17 @@
     <Image Include="textures\small_brick_wall.png">
       <Filter>Resource Files</Filter>
     </Image>
+    <Image Include="textures\person_left.png">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="textures\fan_cursor.png">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="textures\fan_cursor_black.png">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="textures\fan_cursor_pink2.png">
+      <Filter>Resource Files</Filter>
+    </Image>
   </ItemGroup>
 </Project>

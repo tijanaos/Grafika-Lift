@@ -149,6 +149,9 @@
     <Image Include="textures\elevator_door.png" />
     <Image Include="textures\elevator_open.png" />
     <Image Include="textures\fan.png" />
+    <Image Include="textures\fan_cursor.png" />
+    <Image Include="textures\fan_cursor_black.png" />
+    <Image Include="textures\fan_cursor_pink2.png" />
     <Image Include="textures\floor1.png" />
     <Image Include="textures\floor2.png" />
     <Image Include="textures\floor3.png" />
@@ -160,6 +163,7 @@
     <Image Include="textures\ime.png" />
     <Image Include="textures\open.png" />
     <Image Include="textures\person.png" />
+    <Image Include="textures\person_left.png" />
     <Image Include="textures\small_brick_wall.png" />
     <Image Include="textures\stop.png" />
   </ItemGroup>
