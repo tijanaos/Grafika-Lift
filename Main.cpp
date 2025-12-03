@@ -14,7 +14,7 @@
 float deltaTime = 0.0f;
 const float DOOR_ANIM_DURATION = 0.3f;   // vreme animacije otvaranja/zatvaranja
 const float BASE_DOOR_OPEN_TIME = 5.0f;  // osnovno vreme dok su vrata otvorena
-const float PERSON_FLOOR_OFFSET = 6.0f;  // kada udje u lift, da ne ispada kroz dno
+const float PERSON_FLOOR_OFFSET = 10.0f;  // kada udje u lift, da ne ispada kroz dno
 
 
 
@@ -462,9 +462,16 @@ int main()
 
     glBindVertexArray(0);
 
-    // 4b) Vrata lifta – pravougaonik koji se animira
-    Vertex doorVertices[4];
-    unsigned int doorIndices[6] = { 0, 1, 2, 2, 3, 0 };
+    // 4b) Vrata lifta – DVE polovine, svaka je poseban kvadrat
+    Vertex doorVertices[8];   // 2x4 verteksa
+    unsigned int doorIndices[12] = {
+        // levo krilo
+        0, 1, 2,
+        2, 3, 0,
+        // desno krilo
+        4, 5, 6,
+        6, 7, 4
+    };
 
     unsigned int doorVAO, doorVBO, doorEBO;
     glGenVertexArrays(1, &doorVAO);
@@ -474,7 +481,7 @@ int main()
     glBindVertexArray(doorVAO);
 
     glBindBuffer(GL_ARRAY_BUFFER, doorVBO);
-    // podatke ćemo slati dinamički u glavnoj petlji
+    // sada je veći bafer jer imamo 8 verteksa
     glBufferData(GL_ARRAY_BUFFER, sizeof(doorVertices), nullptr, GL_DYNAMIC_DRAW);
 
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, doorEBO);
@@ -501,6 +508,7 @@ int main()
     glEnableVertexAttribArray(1);
 
     glBindVertexArray(0);
+
 
     // 4c) Elevator shaft - pozadina iza lifta
     Vertex shaftVertices[4];
@@ -1190,30 +1198,59 @@ int main()
 
         // 9) Ažuriraj verteks podatke za vrata na osnovu doorOpenRatio
         float fullHeight = elevator.height;
+        float dBottom = elevator.y;
+        float dTop = elevator.y + fullHeight;
 
-        // visina vidljivog dela vrata (0..fullHeight)
-        float doorHeight = fullHeight * (1.0f - elevator.doorOpenRatio);
-        if (doorHeight < 0.0f) doorHeight = 0.0f;
+        // širina otvora lifta
+        float fullWidth = elevator.width;
+        float centerX = elevator.x + fullWidth * 0.5f;
+        float halfWidth = fullWidth * 0.5f;
 
-        // dno vrata se penje naviše kako se otvaraju,
-        // vrh ostaje na vrhu kabine
-        float dTop = elevator.y + fullHeight;           // uvek vrh kabine
-        float dBottom = dTop - doorHeight;                 // pomeraj dno nagore
+        // koliko krila "nestaju" u zid (0..halfWidth)
+        float slide = halfWidth * elevator.doorOpenRatio;
 
-        float dLeft = elevator.x;
-        float dRight = elevator.x + elevator.width;
+        // --- fiksne ivice kod zidova ---
+        float leftWallX = elevator.x;
+        float rightWallX = elevator.x + fullWidth;
 
-        doorVertices[0] = { dLeft,  dBottom, 0.0f, 0.0f };
-        doorVertices[1] = { dRight, dBottom, 1.0f, 0.0f };
-        doorVertices[2] = { dRight, dTop,    1.0f, 1.0f };
-        doorVertices[3] = { dLeft,  dTop,    0.0f, 1.0f };
+        // ZATVORENO (ratio=0):
+        //  levo krilo: [leftWallX, centerX]
+        //  desno krilo: [centerX, rightWallX]
+
+        // OTVORENO (ratio=1):
+        //  levo krilo: [leftWallX, leftWallX]
+        //  desno krilo: [rightWallX, rightWallX]
+
+        // Levo krilo – leva ivica fiksna, desna se pomera ka levoj
+        float leftLeft = leftWallX;              // fiksno
+        float leftRight = centerX - slide;        // od centerX → leftWallX
+
+        // Desno krilo – desna ivica fiksna, leva se pomera ka desnoj
+        float rightRight = rightWallX;            // fiksno
+        float rightLeft = centerX + slide;       // od centerX → rightWallX
+
+        // -----------------------------
+        // Tekstura: i dalje delimo PNG na pola
+        // leva polovina: u=0.0 do 0.5
+        // desna polovina: u=0.5 do 1.0
+        // -----------------------------
+
+        // Levo krilo (0..3)
+        doorVertices[0] = { leftLeft,  dBottom, 0.0f, 0.0f };  // BL
+        doorVertices[1] = { leftRight, dBottom, 0.5f, 0.0f };  // BR
+        doorVertices[2] = { leftRight, dTop,    0.5f, 1.0f };  // TR
+        doorVertices[3] = { leftLeft,  dTop,    0.0f, 1.0f };  // TL
+
+        // Desno krilo (4..7)
+        doorVertices[4] = { rightLeft,  dBottom, 0.5f, 0.0f }; // BL
+        doorVertices[5] = { rightRight, dBottom, 1.0f, 0.0f }; // BR
+        doorVertices[6] = { rightRight, dTop,    1.0f, 1.0f }; // TR
+        doorVertices[7] = { rightLeft,  dTop,    0.5f, 1.0f }; // TL
 
         glBindBuffer(GL_ARRAY_BUFFER, doorVBO);
         glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(doorVertices), doorVertices);
 
 
-        // (sada ide glClear, crtanje itd.)
-        glClear(GL_COLOR_BUFFER_BIT);
 
 
         shader.use();
@@ -1326,7 +1363,7 @@ int main()
                 shader.setVec4("uColor", 0.2f, 0.2f, 0.3f, 1.0f);
             }
 
-            glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, (void*)0);
+			glDrawElements(GL_TRIANGLES, 12, GL_UNSIGNED_INT, (void*)0); // 12 vertexa za 2 krila
         }
 
         // ako je osoba VAN lifta → crtaj je POSLE vrata (ispred svega)
