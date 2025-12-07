@@ -70,12 +70,11 @@ unsigned int createShader(const char* vsSource, const char* fsSource)
     return program;
 }
 
-// --------- TEXTURE HELPERS (kao na vezbama) ---------
+// --------- TEXTURE HELPERS ---------
 
-unsigned int loadImageToTexture(const char* filePath)
+unsigned int loadImageToTexture(const char* filePath) // loads .png, .jpg and creates OpenGL texture
 {
     int width, height, channels;
-    // If your RG_V3 uses flipping, you can enable it:
     stbi_set_flip_vertically_on_load(true);
     unsigned char* data = stbi_load(filePath, &width, &height, &channels, 0);
 

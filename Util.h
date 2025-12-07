@@ -6,6 +6,6 @@
 // Shader helpers
 unsigned int createShader(const char* vsSource, const char* fsSource);
 
-// Texture helpers (kao na vezbama)
+// Texture helpers
 unsigned int loadImageToTexture(const char* filePath);
 GLFWcursor* loadImageToCursor(const char* filePath);
