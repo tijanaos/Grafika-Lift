@@ -23,7 +23,7 @@ void PersonController::update(float deltaTime, GLFWwindow* window, const Floor f
         dx -= personSpeed * deltaTime;
         person.facingRight = false;
     }
-    if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) {
+    if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) {
         dx += personSpeed * deltaTime;
         person.facingRight = true;
     }
