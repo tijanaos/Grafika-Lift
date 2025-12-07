@@ -10,6 +10,7 @@ int endProgram(std::string message) {
 }
 
 // Helper: orthographic matrix (column-major) used in vertex shaders
+// Converts coordinates from world space to normalized OPENGL coordinates
 void makeOrtho(float left, float right,
     float bottom, float top,
     float zNear, float zFar,
