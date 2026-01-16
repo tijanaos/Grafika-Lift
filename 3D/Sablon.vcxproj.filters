@@ -54,4 +54,12 @@
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
+  <ItemGroup>
+    <Image Include="res\pod.jpg">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="res\zid.png">
+      <Filter>Resource Files</Filter>
+    </Image>
+  </ItemGroup>
 </Project>

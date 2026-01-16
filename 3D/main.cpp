@@ -121,7 +121,7 @@ static const float SHAFT_D = 2.6f;
 
 // Centar okna (mora biti ISTO kao u crtanju)
 static float getShaftX() {
-    return HALL_W * 0.5f + SHAFT_W * 0.5f + 0.6f;
+    return HALL_W * 0.5f + SHAFT_W * 0.5f + 0.8f;
 }
 
 
@@ -447,13 +447,28 @@ int main() {
 
     unsigned int shader = createShader("basic.vert", "basic.frag");
     glUseProgram(shader);
-    glUniform1i(glGetUniformLocation(shader, "uTex"), 0);
-    glUniform1i(glGetUniformLocation(shader, "useTex"), 0);
-    glUniform1i(glGetUniformLocation(shader, "transparent"), 0);
+
+    // --- uniform lokacije za teksture ---
+    int uTex = glGetUniformLocation(shader, "uTex");
+    int uUseTex = glGetUniformLocation(shader, "useTex");
+    int uTexScale = glGetUniformLocation(shader, "uTexScale");
+    int uTransparent = glGetUniformLocation(shader, "transparent");
+
+    // default stanje
+    glUniform1i(uTex, 0);
+    glUniform1i(uUseTex, 0);
+    glUniform2f(uTexScale, 1.0f, 1.0f);
+    glUniform1i(uTransparent, 0);
+
+    // --- ucitaj teksture (iz res foldera) ---
+    GLuint texFloor = loadImageToTexture("res/pod.jpg");
+    GLuint texWall = loadImageToTexture("res/zid.png");
+
+
 
 
     // --- Kamera ---
-    float prY = 1.0f * FLOOR_H; // PR je index 1: SU(0), PR(1)
+    float prY = 2.0f * FLOOR_H; // PR je index 1: SU(0), PR(1)
     Camera camera(glm::vec3(-2.0f, prY + 1.7f, 4.0f));
     gCamera = &camera;
 
@@ -574,15 +589,41 @@ int main() {
         for (int i = 0; i < NUM_FLOORS; i++) {
             float y = i * FLOOR_H;
 
-            // POD (svetlo sivo)
-            glUniform4f(uColor, 0.75f, 0.75f, 0.78f, 1.0f);
+            // POD (tekstura)
+            if (texFloor != 0) {
+                glUniform1i(uUseTex, 1);
+                glActiveTexture(GL_TEXTURE0);
+                glBindTexture(GL_TEXTURE_2D, texFloor);
+                glUniform2f(uTexScale, 6.0f, 5.0f);      // ponavljanje (tweak po ukusu)
+                glUniform4f(uColor, 1, 1, 1, 1);            // bez bojenja (ne tintuj)
+            }
+            else {
+                glUniform1i(uUseTex, 0);
+                glUniform4f(uColor, 0.75f, 0.75f, 0.78f, 1.0f);
+            }
+
             drawBox(uM,
                 glm::vec3(0.0f, y - SLAB_THICK * 0.5f, 0.0f),
                 glm::vec3(HALL_W, SLAB_THICK, HALL_D)
             );
 
-            // ZIDOVI (srednje sivo)
-            glUniform4f(uColor, 0.55f, 0.55f, 0.60f, 1.0f);
+            // posle poda vrati na "bez teksture" ako želiš da sledeće bude boja
+            glUniform1i(uUseTex, 0);
+            glUniform2f(uTexScale, 1.0f, 1.0f);
+
+            // ZIDOVI (tekstura)
+            if (texWall != 0) {
+                glUniform1i(uUseTex, 1);
+                glActiveTexture(GL_TEXTURE0);
+                glBindTexture(GL_TEXTURE_2D, texWall);
+                glUniform2f(uTexScale, 1.0f, 1.0f);
+                glUniform4f(uColor, 1, 1, 1, 1);
+            }
+            else {
+                glUniform1i(uUseTex, 0);
+                glUniform4f(uColor, 0.55f, 0.55f, 0.60f, 1.0f);
+            }
+
 
             // zadnji zid (na -Z)
             drawBox(uM,
@@ -624,6 +665,9 @@ int main() {
                 glm::vec3(wallX, portalYCenter, +(PORTAL_W * 0.5f + sideW * 0.5f)),
                 glm::vec3(WALL_THICK, PORTAL_H, sideW)
             );
+            glUniform1i(uUseTex, 0);
+            glUniform2f(uTexScale, 1.0f, 1.0f);
+
 
             // Spoljna vrata lifta na spratu (za sada ZATVORENA)
             // Stojimo malo unutar hodnika (pomeri po X ka unutra)
@@ -673,12 +717,46 @@ int main() {
         float openCabin = elevator.DoorOpen();
 
 
-        // telo kabine (tamno)
-        glUniform4f(uColor, 0.20f, 0.20f, 0.22f, 1.0f);
+        // telo kabine - teksturisano (da se jasno razlikuje od hodnika)
+        if (texWall != 0) {
+            glUniform1i(uUseTex, 1);
+            glActiveTexture(GL_TEXTURE0);
+            glBindTexture(GL_TEXTURE_2D, texWall);
+            glUniform2f(uTexScale, 2.0f, 2.0f);
+            glUniform4f(uColor, 0.65f, 0.65f, 0.75f, 1.0f); // malo "metalno/hladno"
+        }
+        else {
+            glUniform1i(uUseTex, 0);
+            glUniform4f(uColor, 0.20f, 0.20f, 0.22f, 1.0f);
+        }
+
         drawBox(uM,
             glm::vec3(shaftX, cabinBaseY + CABIN_H * 0.5f, 0.0f),
             glm::vec3(CABIN_W, CABIN_H, CABIN_D)
         );
+
+        glUniform1i(uUseTex, 0);
+        glUniform2f(uTexScale, 1.0f, 1.0f);
+
+
+        // pod unutar kabine (preko donje strane kabine)
+        if (texFloor != 0) {
+            glUniform1i(uUseTex, 1);
+            glActiveTexture(GL_TEXTURE0);
+            glBindTexture(GL_TEXTURE_2D, texFloor);
+            glUniform2f(uTexScale, 2.0f, 2.0f);
+            glUniform4f(uColor, 1.0f, 1.0f, 1.0f, 1.0f);
+
+            drawBox(uM,
+                glm::vec3(shaftX, cabinBaseY + 0.02f, 0.0f),
+                glm::vec3(CABIN_W - 0.10f, 0.04f, CABIN_D - 0.10f)
+            );
+        }
+
+        // dalje objekti u boji
+        glUniform1i(uUseTex, 0);
+        glUniform2f(uTexScale, 1.0f, 1.0f);
+
 
         // Kabinska vrata (2 krila) na strani ka hodniku (X- strana kabine)
     // Za sad zatvorena, stoje u sredini, dele otvor po Z.
