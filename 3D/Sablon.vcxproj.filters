@@ -55,10 +55,34 @@
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <Image Include="res\pod.jpg">
+    <Image Include="res\floor_PR.png">
       <Filter>Resource Files</Filter>
     </Image>
-    <Image Include="res\zid.png">
+    <Image Include="res\floor_SU.png">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="res\floor1.png">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="res\floor2.png">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="res\floor3.png">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="res\floor4.png">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="res\floor5.png">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="res\floor6.png">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="res\pod2.jpg">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="res\zid.jpg">
       <Filter>Resource Files</Filter>
     </Image>
   </ItemGroup>

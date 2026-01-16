@@ -28,7 +28,7 @@ static const float CABIN_D = 2.0f;
 static const float DOOR_THICK = 0.06f;
 
 // Otvor (portal) na zidu sprata (ulaz u lift)
-static const float PORTAL_W = 1.4f;
+static const float PORTAL_W = 1.6f;
 static const float PORTAL_H = 2.2f;
 
 // Vrata na zidu sprata (to su "spoljna" vrata lifta)
@@ -121,7 +121,7 @@ static const float SHAFT_D = 2.6f;
 
 // Centar okna (mora biti ISTO kao u crtanju)
 static float getShaftX() {
-    return HALL_W * 0.5f + SHAFT_W * 0.5f + 0.8f;
+    return HALL_W * 0.5f + SHAFT_W * 0.5f ;
 }
 
 
@@ -139,7 +139,7 @@ static int floorFromCameraY() {
 static bool isAtElevatorEntrance(const Camera& cam, const Elevator& elev) {
     // ulaz je na desnom zidu (x ~ HALL_W/2), oko portala po Z
     float wallX = HALL_W * 0.5f;
-    float doorX = wallX - (WALL_THICK * 0.5f) - (HALL_DOOR_THICK * 0.5f) - 0.01f;
+    float doorX = wallX - (WALL_THICK * 0.5f) - (HALL_DOOR_THICK * 0.5f);
 
     // Kamera pozicija
     float x = cam.Position.x;
@@ -398,6 +398,24 @@ static void drawCrosshairHUD(GLint uM, GLint uV, GLint uP, GLint uColor) {
     glEnable(GL_DEPTH_TEST);
 }
 
+// Crta pravougaonu tablicu sa teksturom oznake sprata
+static void drawFloorSign(GLint uM, GLint uUseTex, GLint uColor, GLint uTransparent,
+    GLuint texture, const glm::vec3& pos, float width, float height) {
+    if (texture != 0) {
+        glUniform1i(uUseTex, 1);
+        glUniform1i(uTransparent, 1);  // omogući transparency za PNG
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, texture);
+        glUniform4f(uColor, 1.0f, 1.0f, 1.0f, 1.0f);
+
+        // Tablica je tanka (po X osi jer je na zidu)
+        drawBox(uM, pos, glm::vec3(0.02f, -height, -width));
+
+        glUniform1i(uUseTex, 0);
+        glUniform1i(uTransparent, 0);
+    }
+}
+
 
 int main() {
     if (!glfwInit()) {
@@ -461,9 +479,19 @@ int main() {
     glUniform1i(uTransparent, 0);
 
     // --- ucitaj teksture (iz res foldera) ---
-    GLuint texFloor = loadImageToTexture("res/pod.jpg");
-    GLuint texWall = loadImageToTexture("res/zid.png");
+    GLuint texFloor = loadImageToTexture("res/pod2.jpg");
+    GLuint texWall = loadImageToTexture("res/zid.jpg");
 
+    // Oznake spratova
+    GLuint texFloorSigns[NUM_FLOORS];
+    texFloorSigns[0] = loadImageToTexture("res/floor_SU.png");
+    texFloorSigns[1] = loadImageToTexture("res/floor_PR.png");
+    texFloorSigns[2] = loadImageToTexture("res/floor1.png");
+    texFloorSigns[3] = loadImageToTexture("res/floor2.png");
+    texFloorSigns[4] = loadImageToTexture("res/floor3.png");
+    texFloorSigns[5] = loadImageToTexture("res/floor4.png");
+    texFloorSigns[6] = loadImageToTexture("res/floor5.png");
+    texFloorSigns[7] = loadImageToTexture("res/floor6.png");
 
 
 
@@ -479,10 +507,10 @@ int main() {
     // --- Kocka VAO (format: pos(3), col(4), tex(2)) ---
     float v[] = {
         // Prednja (z = +0.5)
-         0.5f,  0.5f,  0.5f,   1,0,0,1,   0,0,
-        -0.5f,  0.5f,  0.5f,   1,0,0,1,   1,0,
-        -0.5f, -0.5f,  0.5f,   1,0,0,1,   1,1,
-         0.5f, -0.5f,  0.5f,   1,0,0,1,   0,1,
+        -0.5f,  0.5f,  0.5f,   1,0,0,1,   1,0,  
+         0.5f,  0.5f,  0.5f,   1,0,0,1,   0,0,  
+         0.5f, -0.5f,  0.5f,   1,0,0,1,   0,1,  
+        -0.5f, -0.5f,  0.5f,   1,0,0,1,   1,1,  
 
          // Leva (x = -0.5)
          -0.5f,  0.5f,  0.5f,   0,0,1,1,   0,0,
@@ -594,7 +622,7 @@ int main() {
                 glUniform1i(uUseTex, 1);
                 glActiveTexture(GL_TEXTURE0);
                 glBindTexture(GL_TEXTURE_2D, texFloor);
-                glUniform2f(uTexScale, 6.0f, 5.0f);      // ponavljanje (tweak po ukusu)
+                glUniform2f(uTexScale, 1.0f, 1.0f);      // ponavljanje (tweak po ukusu)
                 glUniform4f(uColor, 1, 1, 1, 1);            // bez bojenja (ne tintuj)
             }
             else {
@@ -635,6 +663,11 @@ int main() {
             drawBox(uM,
                 glm::vec3(-HALL_W * 0.5f, y + WALL_H * 0.5f, 0.0f),
                 glm::vec3(WALL_THICK, WALL_H, HALL_D)
+            );
+            // PREDNJI ZID (na +Z) - Zatvara hodnik sa suprotne strane od zadnjeg zida
+            drawBox(uM,
+                glm::vec3(0.0f, y + WALL_H * 0.5f, HALL_D * 0.5f),
+                glm::vec3(HALL_W, WALL_H, WALL_THICK)
             );
 
             // DESNI ZID (na +X) sa otvorom ka liftu
@@ -693,18 +726,25 @@ int main() {
                 glm::vec3(HALL_DOOR_THICK, PORTAL_H, PORTAL_W * 0.5f - CABIN_DOOR_GAP)
             );
 
+            // OZNAKA SPRATA iznad vrata
+            float signWidth = 0.4f;   // širina tablice
+            float signHeight = 0.25f;  // visina tablice
+            float signY = portalYCenter + PORTAL_H * 0.5f + 0.1f;  // malo iznad otvora
+            float signX = doorX - 0.05f;  // malo prema hodniku da se vidi
 
+            drawFloorSign(uM, uUseTex, uColor, uTransparent,
+                texFloorSigns[i],
+                glm::vec3(signX, signY, 0.0f),
+                signWidth, signHeight);
         }
 
         // ---------- Okvir okna lifta (NE kao puna kocka, da se vidi kabina) ----------
         float buildingH = (NUM_FLOORS - 1) * FLOOR_H + WALL_H;
-        float shaftX = HALL_W * 0.5f + SHAFT_W * 0.5f + 0.6f;
+        float shaftX = getShaftX();
 
         glUniform4f(uColor, 0.35f, 0.35f, 0.38f, 1.0f);
 
         float pillarW = 0.15f;
-        drawBox(uM, glm::vec3(shaftX - SHAFT_W * 0.5f, buildingH * 0.5f, 0.0f),
-            glm::vec3(pillarW, buildingH, SHAFT_D));
         drawBox(uM, glm::vec3(shaftX + SHAFT_W * 0.5f, buildingH * 0.5f, 0.0f),
             glm::vec3(pillarW, buildingH, SHAFT_D));
 

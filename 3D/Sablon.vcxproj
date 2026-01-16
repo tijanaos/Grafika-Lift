@@ -158,8 +158,16 @@
     <ClInclude Include="Util.h" />
   </ItemGroup>
   <ItemGroup>
-    <Image Include="res\pod.jpg" />
-    <Image Include="res\zid.png" />
+    <Image Include="res\floor1.png" />
+    <Image Include="res\floor2.png" />
+    <Image Include="res\floor3.png" />
+    <Image Include="res\floor4.png" />
+    <Image Include="res\floor5.png" />
+    <Image Include="res\floor6.png" />
+    <Image Include="res\floor_PR.png" />
+    <Image Include="res\floor_SU.png" />
+    <Image Include="res\pod2.jpg" />
+    <Image Include="res\zid.jpg" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
