@@ -85,5 +85,17 @@
     <Image Include="res\zid.jpg">
       <Filter>Resource Files</Filter>
     </Image>
+    <Image Include="res\close.png">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="res\fan.png">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="res\open.png">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="res\stop.png">
+      <Filter>Resource Files</Filter>
+    </Image>
   </ItemGroup>
 </Project>

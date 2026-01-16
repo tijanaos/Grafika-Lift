@@ -158,6 +158,8 @@
     <ClInclude Include="Util.h" />
   </ItemGroup>
   <ItemGroup>
+    <Image Include="res\close.png" />
+    <Image Include="res\fan.png" />
     <Image Include="res\floor1.png" />
     <Image Include="res\floor2.png" />
     <Image Include="res\floor3.png" />
@@ -166,7 +168,9 @@
     <Image Include="res\floor6.png" />
     <Image Include="res\floor_PR.png" />
     <Image Include="res\floor_SU.png" />
+    <Image Include="res\open.png" />
     <Image Include="res\pod2.jpg" />
+    <Image Include="res\stop.png" />
     <Image Include="res\zid.jpg" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
