@@ -59,13 +59,35 @@ void Elevator::RequestFloor(int floorIdx) {
 void Elevator::CallToFloor(int floorIdx) {
     RequestFloor(floorIdx);
 }
-
 void Elevator::PressOpen() {
-    if (state == ElevatorState::DoorsOpen && !doorExtendedThisCycle) {
-        doorTimer += DOOR_OPEN_TIME;
-        doorExtendedThisCycle = true;
+    // Ne otvaramo vrata dok se lift krece (ili je stopiran usred kretanja)
+    if (state == ElevatorState::Moving || state == ElevatorState::Stopped) {
+        return;
     }
+
+    // Ako se vrata zatvaraju -> preokreni i otvori ponovo
+    if (state == ElevatorState::DoorsClosing) {
+        state = ElevatorState::DoorsOpening;
+        return;
+    }
+
+    // Ako su zatvorena i lift miruje -> otvori
+    // (Idle je jedino stanje kad miruje sa zatvorenim vratima u tvom kodu)
+    if (state == ElevatorState::Idle && doorOpen <= 0.0f) {
+        state = ElevatorState::DoorsOpening;
+        return;
+    }
+
+    // Ako su vec otvorena -> PRODUZI +5s, ali samo jednom po ciklusu
+    if (state == ElevatorState::DoorsOpen && !doorExtendedThisCycle) {
+        doorTimer += DOOR_OPEN_TIME;     // +5 sekundi
+        doorExtendedThisCycle = true;    // maksimalno jednom po ciklusu
+        return;
+    }
+
+    // Ako su u procesu otvaranja (DoorsOpening) -> ne radi nista, vec se otvaraju
 }
+
 
 void Elevator::PressClose() {
     if (state == ElevatorState::DoorsOpen) {

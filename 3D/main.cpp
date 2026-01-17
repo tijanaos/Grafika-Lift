@@ -43,6 +43,9 @@ static const float PANEL_THICK = 0.03f;
 
 static const float BTN_THICK = 0.03f;
 
+static bool gBtnLit[12] = { false }; // da svetle tasteri dok se ne stigne do sprata
+
+
 enum PanelBtnId {
     BTN_F0 = 0, BTN_F1, BTN_F2, BTN_F3, BTN_F4, BTN_F5, BTN_F6, BTN_F7, // spratovi 0..7
     BTN_OPEN = 8,
@@ -279,15 +282,26 @@ static int hitTestPanelCenterRay(const Camera& cam, const Elevator& elev) {
 static void activatePanelButton(int id) {
     if (!gElev) return;
 
+    // Spratovi (SU=0, PR=1, 1=2, ... 6=7)
     if (id >= BTN_F0 && id <= BTN_F7) {
-        gElev->RequestFloor(id); // 0..7
+        int floorIdx = id;                 // direktno mapiranje (kod tebe je već tako)
+        gElev->RequestFloor(floorIdx);
+
+        // Ako biras DRUGI sprat, zatvori vrata odmah da krene bez čekanja
+        if (floorIdx != gElev->CurrentFloor()) {
+            gBtnLit[id] = true;
+            gElev->PressClose();            // radi samo ako su vrata otvorena/otvaraju se
+        }
         return;
     }
+
+    // Ostali tasteri
     if (id == BTN_OPEN) { gElev->PressOpen(); return; }
     if (id == BTN_CLOSE) { gElev->PressClose(); return; }
     if (id == BTN_STOP) { gElev->PressStopToggle(); return; }
     if (id == BTN_VENT) { gElev->ToggleVent(); return; }
 }
+
 
 static void mouse_button_callback(GLFWwindow* window, int button, int action, int mods) {
     if (button != GLFW_MOUSE_BUTTON_LEFT || action != GLFW_PRESS) return;
@@ -367,6 +381,7 @@ static void drawElevatorPanel(GLint uM, GLint uColor, GLint uUseTex, GLint uTran
     for (const PanelBtn& b : gPanelBtns)
     {
         bool hover = (b.id == gHoverBtn);
+        bool lit = (b.id >= BTN_F0 && b.id <= BTN_F7) ? gBtnLit[b.id] : false;
 
         glm::vec3 btnPos(
             panelCenter.x + b.cx,
@@ -377,8 +392,17 @@ static void drawElevatorPanel(GLint uM, GLint uColor, GLint uUseTex, GLint uTran
         // 2) Telo dugmeta (bez teksture)
         glUniform1i(uUseTex, 0);
         glUniform1i(uTransparent, 0);
-        if (hover) glUniform4f(uColor, 0.70f, 0.70f, 0.72f, 1.0f);
-        else       glUniform4f(uColor, 0.50f, 0.50f, 0.52f, 1.0f);
+        if (lit) {
+            // "svetli" (topla žuta)
+            if (hover) glUniform4f(uColor, 1.00f, 0.95f, 0.55f, 1.0f);
+            else       glUniform4f(uColor, 0.95f, 0.85f, 0.30f, 1.0f);
+        }
+        else {
+            // normalno
+            if (hover) glUniform4f(uColor, 0.70f, 0.70f, 0.72f, 1.0f);
+            else       glUniform4f(uColor, 0.50f, 0.50f, 0.52f, 1.0f);
+        }
+
 
         drawBox(uM, btnPos, glm::vec3(b.w, b.h, BTN_THICK));
 
@@ -505,8 +529,6 @@ static void drawTexturedQuad(GLuint shader, GLint uM, GLuint tex,
     glDrawArrays(GL_TRIANGLES, 0, 6);
     glBindVertexArray(0);
 }
-
-
 
 int main() {
     if (!glfwInit()) {
@@ -683,6 +705,26 @@ int main() {
         processInput(window);
         elevator.Update(gDeltaTime);
 
+        // Ugasi taster sprata kad lift stigne i vrata su potpuno otvorena
+        static bool sWasFullyOpen = false;
+
+        bool fullyOpen = (elevator.DoorOpen() > 0.99f);
+
+        // detektuj prelaz "nije bilo potpuno otvoreno" -> "sad je potpuno otvoreno"
+        if (fullyOpen && !sWasFullyOpen) {
+            int idx = (int)std::round(elevator.CabinBaseY() / FLOOR_H);
+            if (idx < 0) idx = 0;
+            if (idx > NUM_FLOORS - 1) idx = NUM_FLOORS - 1;
+
+            // spratovi su BTN_F0..BTN_F7 == 0..7
+            if (idx >= 0 && idx <= 7) {
+                gBtnLit[idx] = false;
+            }
+        }
+
+        sWasFullyOpen = fullyOpen;
+
+
         // --- Unutar main while petlje, pre crtanja ---
 
         // 1. Provera da li si ušla u lift hodanjem
@@ -797,6 +839,7 @@ int main() {
                 glm::vec3(-HALL_W * 0.5f, y + WALL_H * 0.5f, 0.0f),
                 glm::vec3(WALL_THICK, WALL_H, HALL_D)
             );
+
             // PREDNJI ZID (na +Z) - Zatvara hodnik sa suprotne strane od zadnjeg zida
             drawBox(uM,
                 glm::vec3(0.0f, y + WALL_H * 0.5f, HALL_D * 0.5f),
@@ -869,6 +912,26 @@ int main() {
                 texFloorSigns[i],
                 glm::vec3(signX, signY, 0.0f),
                 signWidth, signHeight);
+
+            // --- NOVO: oznaka sprata na zidu NASPRAM lifta (levi zid, x = -HALL_W/2) ---
+            {
+                // da tablica ne nasledi neko tilovanje
+                glUniform2f(uTexScale, 1.0f, 1.0f);
+
+                float sign2W = 0.60f;
+                float sign2H = 0.35f;
+
+                float sign2Y = y + 1.75f; // u nivou ociju
+                float sign2X = -HALL_W * 0.5f + WALL_THICK * 0.5f + 0.02f; // malo ka unutra u hodnik
+                float sign2Z = 0.0f;
+
+                drawFloorSign(uM, uUseTex, uColor, uTransparent,
+                    texFloorSigns[i],
+                    glm::vec3(sign2X, sign2Y, sign2Z),
+                    sign2W, sign2H);
+            }
+            // --- KRAJ NOVOG DELA ---
+
         }
 
         // ---------- Okvir okna lifta (NE kao puna kocka, da se vidi kabina) ----------
@@ -925,41 +988,23 @@ int main() {
             glm::vec3(CABIN_W, ct, CABIN_D)
         );
 
-        // POD KABINE (već imaš kod ispod, ali ga možeš integrisati ovde)
-        if (texFloor != 0) {
-            glUniform1i(uUseTex, 1);
-            glBindTexture(GL_TEXTURE_2D, texFloor);
-            drawBox(uM,
-                glm::vec3(shaftX, cabinBaseY + 0.01f, 0.0f),
-                glm::vec3(CABIN_W, 0.02f, CABIN_D)
-            );
-        }
+        // POD KABINE - samo tamno siva boja (bez teksture)
+        glUniform1i(uUseTex, 0);
+        glUniform2f(uTexScale, 1.0f, 1.0f);
+        glUniform4f(uColor, 0.18f, 0.18f, 0.19f, 1.0f);
+
+        drawBox(uM,
+            glm::vec3(shaftX, cabinBaseY + 0.01f, 0.0f),
+            glm::vec3(CABIN_W, 0.02f, CABIN_D)
+        );
+
         // PREDNJU STRANU (X-) NE CRTAMO - tako ostaje rupa za vrata!
 
         glUniform1i(uUseTex, 0);
         glUniform2f(uTexScale, 1.0f, 1.0f);
 
-
-        // pod unutar kabine (preko donje strane kabine)
-        if (texFloor != 0) {
-            glUniform1i(uUseTex, 1);
-            glActiveTexture(GL_TEXTURE0);
-            glBindTexture(GL_TEXTURE_2D, texFloor);
-            glUniform2f(uTexScale, 2.0f, 2.0f);
-            glUniform4f(uColor, 1.0f, 1.0f, 1.0f, 1.0f);
-
-            drawBox(uM,
-                glm::vec3(shaftX, cabinBaseY + 0.02f, 0.0f),
-                glm::vec3(CABIN_W - 0.10f, 0.04f, CABIN_D - 0.10f)
-            );
-        }
-        // dalje objekti u boji
-        glUniform1i(uUseTex, 0);
-        glUniform2f(uTexScale, 1.0f, 1.0f);
-
-
         // Kabinska vrata (2 krila) na strani ka hodniku (X- strana kabine)
-    // Za sad zatvorena, stoje u sredini, dele otvor po Z.
+        // Za sad zatvorena, stoje u sredini, dele otvor po Z.
         glUniform4f(uColor, 0.70f, 0.70f, 0.75f, 1.0f);
 
         float cabinDoorX = shaftX - CABIN_W * 0.5f + CABIN_DOOR_DEPTH * 0.5f;
