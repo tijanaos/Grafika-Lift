@@ -168,6 +168,7 @@
     <Image Include="res\floor6.png" />
     <Image Include="res\floor_PR.png" />
     <Image Include="res\floor_SU.png" />
+    <Image Include="res\ime.png" />
     <Image Include="res\open.png" />
     <Image Include="res\pod2.jpg" />
     <Image Include="res\stop.png" />

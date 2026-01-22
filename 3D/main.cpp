@@ -537,7 +537,6 @@ static void drawTexturedQuad(GLuint shader, GLint uM, GLuint tex,
     glDrawArrays(GL_TRIANGLES, 0, 6);
     glBindVertexArray(0);
 }
-
 int main() {
     if (!glfwInit()) {
         std::cout << "GLFW nije inicijalizovan.\n";
@@ -628,6 +627,8 @@ int main() {
     texPanelBtns[9] = loadImageToTexture("res/close.png");
     texPanelBtns[10] = loadImageToTexture("res/stop.png");
     texPanelBtns[11] = loadImageToTexture("res/fan.png");
+
+    GLuint texIme = loadImageToTexture("res/ime.png");
 
     // --- Kamera ---
     float prY = 2.0f * FLOOR_H; // PR je index 1: SU(0), PR(1)
@@ -920,25 +921,6 @@ int main() {
                 texFloorSigns[i],
                 glm::vec3(signX, signY, 0.0f),
                 signWidth, signHeight);
-
-            // --- NOVO: oznaka sprata na zidu NASPRAM lifta (levi zid, x = -HALL_W/2) ---
-            {
-                // da tablica ne nasledi neko tilovanje
-                glUniform2f(uTexScale, 1.0f, 1.0f);
-
-                float sign2W = 0.60f;
-                float sign2H = 0.35f;
-
-                float sign2Y = y + 1.75f; // u nivou ociju
-                float sign2X = -HALL_W * 0.5f + WALL_THICK * 0.5f + 0.02f; // malo ka unutra u hodnik
-                float sign2Z = 0.0f;
-
-                drawFloorSign(uM, uUseTex, uColor, uTransparent,
-                    texFloorSigns[i],
-                    glm::vec3(sign2X, sign2Y, sign2Z),
-                    sign2W, sign2H);
-            }
-            // --- KRAJ NOVOG DELA ---
 
         }
 
