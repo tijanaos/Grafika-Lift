@@ -171,14 +171,21 @@ static void key_callback(GLFWwindow* window, int key, int scancode, int action, 
     }
     // Pozovi lift na sprat na kom si (dev test) - C
     if (key == GLFW_KEY_C) {
-        // Ako si van lifta -> pozovi lift na svoj sprat
+        // Ako si van lifta -> proveri da li si blizu vrata
         if (!gInElevator) {
-            gElev->CallToFloor(floorFromCameraY());
+            // NOVA PROVERA: moraš biti BLIZU vrata da pozoveš lift
+            float wallX = HALL_W * 0.5f;
+            float distX = std::fabs(gCamera->Position.x - wallX);
+            float distZ = std::fabs(gCamera->Position.z);
+
+            // Moraš biti u radijusu od ~2 jedinice od vrata
+            if (distX < 2.0f && distZ < (PORTAL_W * 0.6f)) {
+                gElev->CallToFloor(floorFromCameraY());
+            }
         }
         // Ako si na ulazu i vrata su otvorena -> udji/izadji
         else {
             // ako si unutra i vrata otvorena, izlazak je dozvoljen
-            // (izlazak ćemo rešiti tako što te teleportujemo malo u hodnik)
             if (gCamera && isAtElevatorEntrance(*gCamera, *gElev)) {
                 gInElevator = false;
                 // izbaci malo u hodnik (ka -X)
@@ -476,6 +483,7 @@ static void drawFloorSign(GLint uM, GLint uUseTex, GLint uColor, GLint uTranspar
         glUniform1i(uTransparent, 0);
     }
 }
+
 // za iscrtavanje tekstura preko dugmadi na panelu
 static GLuint gQuadVAO = 0, gQuadVBO = 0;
 
