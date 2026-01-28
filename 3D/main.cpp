@@ -36,6 +36,15 @@ static const float HALL_DOOR_THICK = 0.08f;
 static const float CABIN_DOOR_GAP = 0.02f;     // mala rupa između krila
 static const float CABIN_DOOR_DEPTH = 0.05f;   // debljina krila po X (jer su na strani ka hodniku)
 
+// ---------------- Spoljni "call" taster pored vrata (na svakom spratu) ----------------
+static const float HALL_CALL_BTN_W = 0.14f;     // širina po Z
+static const float HALL_CALL_BTN_H = 0.18f;     // visina po Y
+static const float HALL_CALL_BTN_THICK = 0.03f; // debljina po X
+static const float HALL_CALL_BTN_Y = 1.20f;     // visina centra tastera od poda sprata
+static const float HALL_CALL_BTN_Z_OFF = 0.55f; // pomeraj od centra vrata po Z (desna strana)
+
+
+
 // ---------------- Panel u kabini ----------------
 static const float PANEL_W = 0.6f;
 static const float PANEL_H = 1.2f;
@@ -120,6 +129,7 @@ static void mouse_callback(GLFWwindow* window, double xpos, double ypos) {
 static const int NUM_FLOORS = 8;          // SU, PR, 1..6
 static const float FLOOR_H = 3.0f;        // visina sprata
 static const float SLAB_THICK = 0.12f;
+static bool gHallCallLit[NUM_FLOORS] = { false }; // svetli dok lift ne stigne
 
 static const float HALL_W = 12.0f;        // širina hodnika (x)
 static const float HALL_D = 10.0f;        // dubina hodnika (z)
@@ -241,6 +251,48 @@ static glm::vec3 cameraForwardFromView(const Camera& cam) {
     return -camPlusZ; // forward
 }
 
+static int hitTestHallCallButtonCenterRay(const Camera& cam) {
+    // klik radi samo kad si van lifta (ovde ne proveravamo gInElevator, to radi callback)
+    int floorIdx = floorFromCameraY();
+    float y = floorIdx * FLOOR_H;
+
+    // ista računica kao u crtanju spoljašnjih vrata
+    float wallX = HALL_W * 0.5f;
+    float portalYCenter = y + PORTAL_H * 0.5f;
+
+    // taster je na unutrašnjoj strani zida (malo ka hodniku)
+    float btnX = wallX - (WALL_THICK * 0.5f) - (HALL_CALL_BTN_THICK * 0.5f) - 0.01f;
+    float btnY = y + HALL_CALL_BTN_Y;
+    float sideW = (HALL_D - PORTAL_W) * 0.5f;
+    if (sideW < 0.1f) sideW = 0.1f;
+
+    float btnZ = -(PORTAL_W * 0.5f + sideW * 0.2f);
+
+
+    glm::vec3 ro = cam.Position;
+    glm::vec3 rd = glm::normalize(cameraForwardFromView(cam));
+
+    // ograniči domet (da ne klikćeš sa drugog kraja sprata)
+    float dist = glm::length(glm::vec3(btnX, btnY, btnZ) - ro);
+    if (dist > 4.0f) return -1;
+
+    // ravan tastera: x = btnX (normal je +X/-X)
+    if (std::fabs(rd.x) < 1e-6f) return -1;
+    float t = (btnX - ro.x) / rd.x;
+    if (t <= 0.0f) return -1;
+
+    glm::vec3 p = ro + rd * t;
+
+    // provera da li je pogodak u granicama pravougaonika tastera (Y,Z)
+    if (std::fabs(p.y - btnY) <= (HALL_CALL_BTN_H * 0.5f) &&
+        std::fabs(p.z - btnZ) <= (HALL_CALL_BTN_W * 0.5f))
+    {
+        return floorIdx;
+    }
+    return -1;
+}
+
+
 static bool pointInRect(float x, float y, float cx, float cy, float w, float h) {
     return (x >= cx - w * 0.5f && x <= cx + w * 0.5f &&
         y >= cy - h * 0.5f && y <= cy + h * 0.5f);
@@ -313,13 +365,23 @@ static void activatePanelButton(int id) {
 static void mouse_button_callback(GLFWwindow* window, int button, int action, int mods) {
     if (button != GLFW_MOUSE_BUTTON_LEFT || action != GLFW_PRESS) return;
     if (!gCamera || !gElev) return;
-    if (!gInElevator) return;
 
-    int id = hitTestPanelCenterRay(*gCamera, *gElev);
-    if (id != -1) {
-        activatePanelButton(id);
+    // 1) Ako si U liftu -> klik na panel
+    if (gInElevator) {
+        int id = hitTestPanelCenterRay(*gCamera, *gElev);
+        if (id != -1) activatePanelButton(id);
+        return;
+    }
+
+    // 2) Ako si VAN lifta -> klik na spoljni taster pored vrata
+    int floorIdx = hitTestHallCallButtonCenterRay(*gCamera);
+    if (floorIdx != -1) {
+        gHallCallLit[floorIdx] = true;      // upali lampicu
+        gElev->CallToFloor(floorIdx);       // ista logika kao taster C
     }
 }
+
+
 
 // Crta panel + dugmad (sa hover highlight) , jako komplikovano jer crta teksturu na vrh dugmeta a ne sa strabe
 static void drawElevatorPanel(GLint uM, GLint uColor, GLint uUseTex, GLint uTransparent,
@@ -728,6 +790,7 @@ int main() {
             // spratovi su BTN_F0..BTN_F7 == 0..7
             if (idx >= 0 && idx <= 7) {
                 gBtnLit[idx] = false;
+                gHallCallLit[idx] = false; // ugasi i spoljni call taster na tom spratu
             }
         }
 
@@ -895,9 +958,8 @@ int main() {
 
             float open = (elevator.IsExactlyAtFloor(i) ? elevator.DoorOpen() : 0.0f);
 
-            // otvara se od sredine ka spolja
+            //// otvara se od sredine ka spolja
             float zShift = open * (PORTAL_W * 0.25f);
-
             float leftZ = -PORTAL_W * 0.25f - zShift;
             float rightZ = PORTAL_W * 0.25f + zShift;
 
@@ -910,6 +972,29 @@ int main() {
                 glm::vec3(doorX, portalYCenter, rightZ),
                 glm::vec3(HALL_DOOR_THICK, PORTAL_H, PORTAL_W * 0.5f - CABIN_DOOR_GAP)
             );
+
+            // ---- Spoljni "call" taster pored vrata ----
+            glUniform1i(uUseTex, 0);              // bitno: da ne "pokupi" texWall
+            glUniform2f(uTexScale, 1.0f, 1.0f);
+
+            {
+                float btnX = wallX - (WALL_THICK * 0.5f) - (HALL_CALL_BTN_THICK * 0.5f) - 0.01f;
+                float btnY = y + HALL_CALL_BTN_Y;
+                float btnZ = -(PORTAL_W * 0.5f + sideW * 0.2f);    // desna strana otvora po Z
+
+                if (gHallCallLit[i]) {
+                    glUniform4f(uColor, 0.85f, 0.85f, 0.85f, 1.0f);
+                }
+                else {
+                    glUniform4f(uColor, 0.45f, 0.45f, 0.48f, 1.0f);
+                }
+
+                drawBox(uM,
+                    glm::vec3(btnX, btnY, btnZ),
+                    glm::vec3(HALL_CALL_BTN_THICK, HALL_CALL_BTN_H, HALL_CALL_BTN_W)
+                );
+            }
+
 
             // OZNAKA SPRATA iznad vrata
             float signWidth = 0.4f;   // širina tablice
@@ -1010,12 +1095,12 @@ int main() {
             glm::vec3(CABIN_DOOR_DEPTH, CABIN_H, CABIN_D * 0.5f - CABIN_DOOR_GAP)
         );
 
-		// krilo 2
+		////// krilo 2
         drawBox(uM,
             glm::vec3(cabinDoorX, cabinDoorY, rightZc),
             glm::vec3(CABIN_DOOR_DEPTH, CABIN_H, CABIN_D * 0.5f - CABIN_DOOR_GAP)
         );
-
+        
         drawElevatorPanel(uM, uColor, uUseTex, uTransparent, texPanelBtns, elevator);
         glUniform4f(uColor, 0.9f, 0.2f, 0.9f, 1.0f);
 
