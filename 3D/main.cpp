@@ -19,31 +19,29 @@ static bool gInElevator = false;
 static int gHoverBtn = -1;   // koje dugme panel-a "gađaš" pogledom (centar ekrana)
 
 // Dimenzije kabine lifta
-static const int ELEV_START_FLOOR_IDX = 2; // početak: sprat "1" (SU=0, PR=1, 1=2)
+static const int ELEV_START_FLOOR_IDX = 2; // na pocetku je sprat "1" (SU=0, PR=1, 1=2)
 static const float CABIN_W = 2.4f;
 static const float CABIN_H = 2.2f;
 static const float CABIN_D = 2.8f;
 static const float DOOR_THICK = 0.06f;
 
 // Otvor (portal) na zidu sprata (ulaz u lift)
-static const float PORTAL_W = 2.4f;
+static const float PORTAL_W = 2.0f;
 static const float PORTAL_H = 2.2f;
 
 // Vrata na zidu sprata (to su "spoljna" vrata lifta)
 static const float HALL_DOOR_THICK = 0.08f;
 
 // Kabinska klizna vrata (2 krila)
-static const float CABIN_DOOR_GAP = 0.02f;     // mala rupa između krila
+static const float CABIN_DOOR_GAP = 0.02f;     // mala rupa izmedju krila
 static const float CABIN_DOOR_DEPTH = 0.05f;   // debljina krila po X (jer su na strani ka hodniku)
 
 // ---------------- Spoljni "call" taster pored vrata (na svakom spratu) ----------------
-static const float HALL_CALL_BTN_W = 0.14f;     // širina po Z
+static const float HALL_CALL_BTN_W = 0.14f;     // sirina po Z
 static const float HALL_CALL_BTN_H = 0.18f;     // visina po Y
 static const float HALL_CALL_BTN_THICK = 0.03f; // debljina po X
 static const float HALL_CALL_BTN_Y = 1.20f;     // visina centra tastera od poda sprata
 static const float HALL_CALL_BTN_Z_OFF = 0.55f; // pomeraj od centra vrata po Z (desna strana)
-
-
 
 // ---------------- Panel u kabini ----------------
 static const float PANEL_W = 0.6f;
@@ -117,7 +115,7 @@ static void mouse_callback(GLFWwindow* window, double xpos, double ypos) {
     }
 
     float xoffset = (float)xpos - gLastX;
-    float yoffset = gLastY - (float)ypos; // obrnuto: gore je pozitivan pitch
+    float yoffset = gLastY - (float)ypos; 
 
     gLastX = (float)xpos;
     gLastY = (float)ypos;
@@ -125,7 +123,6 @@ static void mouse_callback(GLFWwindow* window, double xpos, double ypos) {
     if (gCamera) gCamera->ProcessMouseMovement(xoffset, yoffset);
 }
 
-// ---------- ETAPA 2: dimenzije scene ----------
 static const int NUM_FLOORS = 8;          // SU, PR, 1..6
 static const float FLOOR_H = 3.0f;        // visina sprata
 static const float SLAB_THICK = 0.12f;
@@ -140,14 +137,13 @@ static const float WALL_H = 2.6f;
 static const float SHAFT_W = 2.2f;
 static const float SHAFT_D = 2.6f;
 
-// Centar okna (mora biti ISTO kao u crtanju)
+// Centar okna 
 static float getShaftX() {
-    return HALL_W * 0.5f + SHAFT_W * 0.5f - 0.35f;
+    return HALL_W * 0.5f + (WALL_THICK * 0.5f) + (SHAFT_W * 0.5f);
 }
 static Elevator* gElev = nullptr;
 
 static int floorFromCameraY() {
-    // kamera je na visini +1.7, uzmi "pod" sprata kao reference
     float yFloor = gCamera ? (gCamera->Position.y - 1.7f) : 0.0f;
     int idx = (int)std::round(yFloor / FLOOR_H);
     if (idx < 0) idx = 0;
@@ -160,7 +156,6 @@ static bool isAtElevatorEntrance(const Camera& cam, const Elevator& elev) {
     float x = cam.Position.x;
     float z = cam.Position.z;
 
-    // Proširi opseg detekcije da bi "hvatao" trenutak prolaska kroz vrata
     bool nearX = std::fabs(x - wallX) < 1.0f;
     bool nearZ = std::fabs(z - 0.0f) < (PORTAL_W * 0.6f);
     bool doorsOpen = elev.DoorOpen() > 0.80f;
@@ -183,12 +178,12 @@ static void key_callback(GLFWwindow* window, int key, int scancode, int action, 
     if (key == GLFW_KEY_C) {
         // Ako si van lifta -> proveri da li si blizu vrata
         if (!gInElevator) {
-            // NOVA PROVERA: moraš biti BLIZU vrata da pozoveš lift
+            // mora biti BLIZU vrata da bi se pozvao lift
             float wallX = HALL_W * 0.5f;
             float distX = std::fabs(gCamera->Position.x - wallX);
             float distZ = std::fabs(gCamera->Position.z);
 
-            // Moraš biti u radijusu od ~2 jedinice od vrata
+            // mora biti u radijusu od 2 od vrata
             if (distX < 2.0f && distZ < (PORTAL_W * 0.6f)) {
                 gElev->CallToFloor(floorFromCameraY());
             }
@@ -198,7 +193,6 @@ static void key_callback(GLFWwindow* window, int key, int scancode, int action, 
             // ako si unutra i vrata otvorena, izlazak je dozvoljen
             if (gCamera && isAtElevatorEntrance(*gCamera, *gElev)) {
                 gInElevator = false;
-                // izbaci malo u hodnik (ka -X)
                 gCamera->Position.x -= 1.2f;
             }
         }
@@ -214,7 +208,6 @@ static void key_callback(GLFWwindow* window, int key, int scancode, int action, 
     // Vent: V (auto-off na prvom target spratu)
     if (key == GLFW_KEY_V) { gElev->ToggleVent(); return; }
 }
-
 
 static void processInput(GLFWwindow* window) {
     if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS) {
@@ -256,11 +249,10 @@ static int hitTestHallCallButtonCenterRay(const Camera& cam) {
     int floorIdx = floorFromCameraY();
     float y = floorIdx * FLOOR_H;
 
-    // ista računica kao u crtanju spoljašnjih vrata
     float wallX = HALL_W * 0.5f;
     float portalYCenter = y + PORTAL_H * 0.5f;
 
-    // taster je na unutrašnjoj strani zida (malo ka hodniku)
+    // taster je na unustrasnjoj strani zida
     float btnX = wallX - (WALL_THICK * 0.5f) - (HALL_CALL_BTN_THICK * 0.5f) - 0.01f;
     float btnY = y + HALL_CALL_BTN_Y;
     float sideW = (HALL_D - PORTAL_W) * 0.5f;
@@ -272,7 +264,7 @@ static int hitTestHallCallButtonCenterRay(const Camera& cam) {
     glm::vec3 ro = cam.Position;
     glm::vec3 rd = glm::normalize(cameraForwardFromView(cam));
 
-    // ograniči domet (da ne klikćeš sa drugog kraja sprata)
+    // ogranicavanje daljine kad moze da se pritisne taster 
     float dist = glm::length(glm::vec3(btnX, btnY, btnZ) - ro);
     if (dist > 4.0f) return -1;
 
@@ -292,13 +284,11 @@ static int hitTestHallCallButtonCenterRay(const Camera& cam) {
     return -1;
 }
 
-
 static bool pointInRect(float x, float y, float cx, float cy, float w, float h) {
     return (x >= cx - w * 0.5f && x <= cx + w * 0.5f &&
         y >= cy - h * 0.5f && y <= cy + h * 0.5f);
 }
-
-// Vraca id dugmeta (0..11) ili -1 ako ne "gađa" panel.
+// Vraca id dugmeta (0..11) ili -1 ako ne gadja panel.
 static int hitTestPanelCenterRay(const Camera& cam, const Elevator& elev) {
     if (!gInElevator) return -1; // Klik radi samo kad smo unutra
 
@@ -330,7 +320,6 @@ static int hitTestPanelCenterRay(const Camera& cam, const Elevator& elev) {
     if (std::fabs(u) > PANEL_W * 0.5f || std::fabs(v) > PANEL_H * 0.5f) return -1;
 
     for (const PanelBtn& b : gPanelBtns) {
-        // Skaliraj i ovde proveru ako si smanjila dugmad
         if (pointInRect(u, v, b.cx * (PANEL_W / 0.6f), b.cy * (PANEL_H / 1.2f), b.w * 0.7f, b.h * 0.7f)) {
             return b.id;
         }
@@ -343,10 +332,10 @@ static void activatePanelButton(int id) {
 
     // Spratovi (SU=0, PR=1, 1=2, ... 6=7)
     if (id >= BTN_F0 && id <= BTN_F7) {
-        int floorIdx = id;                 // direktno mapiranje (kod tebe je već tako)
+        int floorIdx = id;                 
         gElev->RequestFloor(floorIdx);
 
-        // Ako biras DRUGI sprat, zatvori vrata odmah da krene bez čekanja
+		// Ako biras DRUGI sprat, zatvori vrata odmah da krene bez cekanja
         if (floorIdx != gElev->CurrentFloor()) {
             gBtnLit[id] = true;
             gElev->PressClose();            // radi samo ako su vrata otvorena/otvaraju se
@@ -360,7 +349,6 @@ static void activatePanelButton(int id) {
     if (id == BTN_STOP) { gElev->PressStopToggle(); return; }
     if (id == BTN_VENT) { gElev->ToggleVent(); return; }
 }
-
 
 static void mouse_button_callback(GLFWwindow* window, int button, int action, int mods) {
     if (button != GLFW_MOUSE_BUTTON_LEFT || action != GLFW_PRESS) return;
@@ -380,8 +368,6 @@ static void mouse_button_callback(GLFWwindow* window, int button, int action, in
         gElev->CallToFloor(floorIdx);       // ista logika kao taster C
     }
 }
-
-
 
 // Crta panel + dugmad (sa hover highlight) , jako komplikovano jer crta teksturu na vrh dugmeta a ne sa strabe
 static void drawElevatorPanel(GLint uM, GLint uColor, GLint uUseTex, GLint uTransparent,
@@ -425,8 +411,6 @@ static void drawElevatorPanel(GLint uM, GLint uColor, GLint uUseTex, GLint uTran
         glBindBuffer(GL_ARRAY_BUFFER, 0);
         glBindVertexArray(0);
     }
-
-    // zapamti koji je VAO trenutno bound (kod tebe je to cube VAO u main render loop-u)
     GLint prevVAO = 0;
     glGetIntegerv(GL_VERTEX_ARRAY_BINDING, &prevVAO);
 
@@ -462,7 +446,7 @@ static void drawElevatorPanel(GLint uM, GLint uColor, GLint uUseTex, GLint uTran
         glUniform1i(uUseTex, 0);
         glUniform1i(uTransparent, 0);
         if (lit) {
-            // "svetli" (topla žuta)
+            // svetli
             if (hover) glUniform4f(uColor, 1.00f, 0.95f, 0.55f, 1.0f);
             else       glUniform4f(uColor, 0.95f, 0.85f, 0.30f, 1.0f);
         }
@@ -475,7 +459,7 @@ static void drawElevatorPanel(GLint uM, GLint uColor, GLint uUseTex, GLint uTran
 
         drawBox(uM, btnPos, glm::vec3(b.w, b.h, BTN_THICK));
 
-        // 3) Ikonica (tekstura) kao JEDAN QUAD, tačno na PREDNJOJ strani dugmeta
+        // 3) Ikonica (tekstura) kao JEDAN QUAD na PREDNJOJ strani dugmeta
         GLuint tex = btnTextures[b.id];
         if (tex != 0)
         {
@@ -486,7 +470,6 @@ static void drawElevatorPanel(GLint uM, GLint uColor, GLint uUseTex, GLint uTran
             glActiveTexture(GL_TEXTURE0);
             glBindTexture(GL_TEXTURE_2D, tex);
 
-            // Najbitniji fix: stavi nalepnicu ISPRED prednje face dugmeta
             float zFront = btnPos.z + (BTN_THICK * 0.5f) + 0.0015f;
 
             glm::mat4 M(1.0f);
@@ -497,7 +480,6 @@ static void drawElevatorPanel(GLint uM, GLint uColor, GLint uUseTex, GLint uTran
             glBindVertexArray(sQuadVAO);
             glDrawArrays(GL_TRIANGLES, 0, 6);
 
-            // vrati cube VAO da sledeci drawBox radi normalno
             glBindVertexArray((GLuint)prevVAO);
         }
     }
@@ -507,8 +489,7 @@ static void drawElevatorPanel(GLint uM, GLint uColor, GLint uUseTex, GLint uTran
     glBindVertexArray((GLuint)prevVAO);
 }
 
-
-// HUD crosshair u centru (u NDC prostoru)
+// HUD crosshair u centru 
 static void drawCrosshairHUD(GLint uM, GLint uV, GLint uP, GLint uColor) {
     glDisable(GL_DEPTH_TEST);
 
@@ -533,19 +514,17 @@ static void drawFloorSign(GLint uM, GLint uUseTex, GLint uColor, GLint uTranspar
     GLuint texture, const glm::vec3& pos, float width, float height) {
     if (texture != 0) {
         glUniform1i(uUseTex, 1);
-        glUniform1i(uTransparent, 1);  // omogući transparency za PNG
+        glUniform1i(uTransparent, 1); 
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_2D, texture);
         glUniform4f(uColor, 1.0f, 1.0f, 1.0f, 1.0f);
 
-        // Tablica je tanka (po X osi jer je na zidu)
         drawBox(uM, pos, glm::vec3(0.02f, -height, -width));
 
         glUniform1i(uUseTex, 0);
         glUniform1i(uTransparent, 0);
     }
 }
-
 // za iscrtavanje tekstura preko dugmadi na panelu
 static GLuint gQuadVAO = 0, gQuadVBO = 0;
 
@@ -628,7 +607,6 @@ int main() {
     glfwSetKeyCallback(window, key_callback);
     glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
 
-    // FPS kamera: zaključaj kursor i koristi mouse movement
     glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
     glfwSetCursorPosCallback(window, mouse_callback);
     glfwSetMouseButtonCallback(window, mouse_button_callback);
@@ -648,7 +626,6 @@ int main() {
     unsigned int shader = createShader("basic.vert", "basic.frag");
     glUseProgram(shader);
 
-    // --- uniform lokacije za teksture ---
     int uTex = glGetUniformLocation(shader, "uTex");
     int uUseTex = glGetUniformLocation(shader, "useTex");
     int uTexScale = glGetUniformLocation(shader, "uTexScale");
@@ -660,7 +637,7 @@ int main() {
     glUniform2f(uTexScale, 1.0f, 1.0f);
     glUniform1i(uTransparent, 0);
 
-    // --- ucitaj teksture (iz res foldera) ---
+    // --- teksture ---
     GLuint texFloor = loadImageToTexture("res/pod2.jpg");
     GLuint texWall = loadImageToTexture("res/zid.jpg");
 
@@ -675,7 +652,6 @@ int main() {
     texFloorSigns[6] = loadImageToTexture("res/floor5.png");
     texFloorSigns[7] = loadImageToTexture("res/floor6.png");
 
-    // --- U main funkciji, kod ucitavanja tekstura ---
     GLuint texPanelBtns[12]; // 0-7 su spratovi, 8 OPEN, 9 CLOSE, 10 STOP, 11 VENT
     texPanelBtns[0] = loadImageToTexture("res/floor_SU.png");
     texPanelBtns[1] = loadImageToTexture("res/floor_PR.png");
@@ -949,32 +925,53 @@ int main() {
             glUniform1i(uUseTex, 0);
             glUniform2f(uTexScale, 1.0f, 1.0f);
 
-
-            // Spoljna vrata lifta na spratu (za sada ZATVORENA)
-            // Stojimo malo unutar hodnika (pomeri po X ka unutra)
+            // Spoljna vrata lifta na spratu
             glUniform4f(uColor, 0.80f, 0.80f, 0.85f, 1.0f);
+            //float doorX = wallX + 0.06f;
 
-            float doorX = wallX - (WALL_THICK * 0.5f) - (HALL_DOOR_THICK * 0.5f) - 0.01f;
+            //float open = (elevator.IsExactlyAtFloor(i) ? elevator.DoorOpen() : 0.0f);
+
+            //// otvara se od sredine ka spolja
+            //float zShift = open * (PORTAL_W * 0.45f); // 0.45 jer svako krilo prelazi pola svog puta
+            //float leftZ = -PORTAL_W * 0.25f - zShift;
+            //float rightZ = PORTAL_W * 0.25f + zShift;
+
+            //// Krilo 1
+            //drawBox(uM,
+            //    glm::vec3(doorX, portalYCenter, leftZ),
+            //    glm::vec3(HALL_DOOR_THICK, PORTAL_H, PORTAL_W * 0.5f - CABIN_DOOR_GAP)
+            //);
+
+            //// Krilo 2
+            //drawBox(uM,
+            //    glm::vec3(doorX, portalYCenter, rightZ),
+            //    glm::vec3(HALL_DOOR_THICK, PORTAL_H, PORTAL_W * 0.5f - CABIN_DOOR_GAP)
+            //);
+            // Vrata drži u debljini zida (malo ka +X da stubovi "pojedu" vrata kad se otvore)
+            float doorX = wallX + (WALL_THICK * 0.5f) - (HALL_DOOR_THICK * 0.5f) - 0.001f;
+
 
             float open = (elevator.IsExactlyAtFloor(i) ? elevator.DoorOpen() : 0.0f);
 
-            //// otvara se od sredine ka spolja
-            float zShift = open * (PORTAL_W * 0.25f);
+            float wingW = PORTAL_W * 0.5f - CABIN_DOOR_GAP;
+
+            // SHIFT tako da se krilo skroz skloni iza ivice otvora (z = ±PORTAL_W/2)
+            float zShift = open * (PORTAL_W * 0.5f - CABIN_DOOR_GAP * 0.5f);
+
             float leftZ = -PORTAL_W * 0.25f - zShift;
             float rightZ = PORTAL_W * 0.25f + zShift;
 
-            drawBox(uM,
-                glm::vec3(doorX, portalYCenter, leftZ),
-                glm::vec3(HALL_DOOR_THICK, PORTAL_H, PORTAL_W * 0.5f - CABIN_DOOR_GAP)
-            );
+            // Krilo 1
+            drawBox(uM, glm::vec3(doorX, portalYCenter, leftZ),
+                glm::vec3(HALL_DOOR_THICK, PORTAL_H, wingW));
 
-            drawBox(uM,
-                glm::vec3(doorX, portalYCenter, rightZ),
-                glm::vec3(HALL_DOOR_THICK, PORTAL_H, PORTAL_W * 0.5f - CABIN_DOOR_GAP)
-            );
+            // Krilo 2
+            drawBox(uM, glm::vec3(doorX, portalYCenter, rightZ),
+                glm::vec3(HALL_DOOR_THICK, PORTAL_H, wingW));
+
 
             // ---- Spoljni "call" taster pored vrata ----
-            glUniform1i(uUseTex, 0);              // bitno: da ne "pokupi" texWall
+            glUniform1i(uUseTex, 0);              
             glUniform2f(uTexScale, 1.0f, 1.0f);
 
             {
@@ -995,9 +992,8 @@ int main() {
                 );
             }
 
-
             // OZNAKA SPRATA iznad vrata
-            float signWidth = 0.4f;   // širina tablice
+            float signWidth = 0.4f;   // sirina tablice
             float signHeight = 0.25f;  // visina tablice
             float signY = portalYCenter + PORTAL_H * 0.5f + 0.2f;  // malo iznad otvora
             float signX = doorX - 0.05f;  // malo prema hodniku da se vidi
@@ -1009,26 +1005,24 @@ int main() {
 
         }
 
-        // ---------- Okvir okna lifta (NE kao puna kocka, da se vidi kabina) ----------
+        // ---------- Okvir okna lifta  ----------
         float shaftX = getShaftX();
-        // ---------- Kabina lifta (obojena) ----------
+        // ---------- Kabina lifta ----------
         float cabinBaseY = elevator.CabinBaseY();
         float openCabin = elevator.DoorOpen();
 
-
-        // telo kabine - teksturisano (da se jasno razlikuje od hodnika)
+        // telo kabine
         if (texWall != 0) {
             glUniform1i(uUseTex, 1);
             glActiveTexture(GL_TEXTURE0);
             glBindTexture(GL_TEXTURE_2D, texWall);
             glUniform2f(uTexScale, 2.0f, 2.0f);
-            glUniform4f(uColor, 0.65f, 0.65f, 0.75f, 1.0f); // malo "metalno/hladno"
+            glUniform4f(uColor, 0.65f, 0.65f, 0.75f, 1.0f); 
         }
         else {
             glUniform1i(uUseTex, 0);
             glUniform4f(uColor, 0.20f, 0.20f, 0.22f, 1.0f);
         }
-        // --- NOVI KOD ZA ŠUPLJU KABINU ---
         float ct = 0.02f; // debljina zidova kabine
 
         if (texWall != 0) {
@@ -1038,7 +1032,6 @@ int main() {
             glUniform2f(uTexScale, 1.0f, 1.0f);
             glUniform4f(uColor, 0.65f, 0.65f, 0.75f, 1.0f);
         }
-
         // 1. ZADNJI ZID (naspram vrata, na +X strani okna)
         drawBox(uM,
             glm::vec3(shaftX + CABIN_W * 0.5f, cabinBaseY + CABIN_H * 0.5f, 0.0f),
@@ -1073,32 +1066,58 @@ int main() {
             glm::vec3(CABIN_W, 0.02f, CABIN_D)
         );
 
-        // PREDNJU STRANU (X-) NE CRTAMO - tako ostaje rupa za vrata!
+        // --- 5. PREDNJI ZID KABINE (sa otvorom za vrata) ---
+        if (texWall != 0) {
+            glUniform1i(uUseTex, 1);
+            glActiveTexture(GL_TEXTURE0);
+            glBindTexture(GL_TEXTURE_2D, texWall);
+            glUniform2f(uTexScale, 1.0f, 1.0f);
+            glUniform4f(uColor, 0.65f, 0.65f, 0.75f, 1.0f);
+        }
 
-        glUniform1i(uUseTex, 0);
-        glUniform2f(uTexScale, 1.0f, 1.0f);
+        float frontWallX = shaftX - CABIN_W * 0.5f; 
+        float sidePanelW = (CABIN_D - PORTAL_W) * 0.5f; 
+        if (sidePanelW < 0.1f) sidePanelW = 0.1f;
 
-        // Kabinska vrata (2 krila) na strani ka hodniku (X- strana kabine)
-        // Za sad zatvorena, stoje u sredini, dele otvor po Z.
-        glUniform4f(uColor, 0.70f, 0.70f, 0.75f, 1.0f);
-
-        float cabinDoorX = shaftX - CABIN_W * 0.5f + CABIN_DOOR_DEPTH * 0.5f;
-        float cabinDoorY = cabinBaseY + CABIN_H * 0.5f;
-
-        float zShiftCab = openCabin * (CABIN_D * 0.25f);
-        float leftZc = -CABIN_D * 0.25f - zShiftCab;
-        float rightZc = CABIN_D * 0.25f + zShiftCab;
-
-        // krilo 1
+        // Prednji levi panel (stub)
         drawBox(uM,
-            glm::vec3(cabinDoorX, cabinDoorY, leftZc),
-            glm::vec3(CABIN_DOOR_DEPTH, CABIN_H, CABIN_D * 0.5f - CABIN_DOOR_GAP)
+            glm::vec3(frontWallX, cabinBaseY + CABIN_H * 0.5f, -CABIN_D * 0.5f + sidePanelW * 0.5f),
+            glm::vec3(ct, CABIN_H, sidePanelW)
+        );
+        // Prednji desni panel (stub)
+        drawBox(uM,
+            glm::vec3(frontWallX, cabinBaseY + CABIN_H * 0.5f, CABIN_D * 0.5f - sidePanelW * 0.5f),
+            glm::vec3(ct, CABIN_H, sidePanelW)
         );
 
-		////// krilo 2
+        // --- KABINSKA VRATA ---
+        glUniform1i(uUseTex, 0);
+        glUniform2f(uTexScale, 1.0f, 1.0f);
+        glUniform4f(uColor, 0.70f, 0.70f, 0.75f, 1.0f);
+
+        float cabinDoorX = frontWallX + CABIN_DOOR_DEPTH * 0.5f + 0.05f;
+        float cabinDoorY = cabinBaseY + CABIN_H * 0.5f;
+
+        /*float zShiftCab = openCabin * (PORTAL_W * 0.45f);
+
+        float doorWingW = PORTAL_W * 0.5f - CABIN_DOOR_GAP;*/
+        float doorWingW = PORTAL_W * 0.5f - CABIN_DOOR_GAP;
+        float zShiftCab = openCabin * (PORTAL_W * 0.5f - CABIN_DOOR_GAP * 0.5f);
+
+
+        float leftZc = -PORTAL_W * 0.25f - zShiftCab;
+        float rightZc = PORTAL_W * 0.25f + zShiftCab;
+
+        // Krilo 1
+        drawBox(uM,
+            glm::vec3(cabinDoorX, cabinDoorY, leftZc),
+            glm::vec3(CABIN_DOOR_DEPTH, CABIN_H, doorWingW)
+        );
+
+        // Krilo 2
         drawBox(uM,
             glm::vec3(cabinDoorX, cabinDoorY, rightZc),
-            glm::vec3(CABIN_DOOR_DEPTH, CABIN_H, CABIN_D * 0.5f - CABIN_DOOR_GAP)
+            glm::vec3(CABIN_DOOR_DEPTH, CABIN_H, doorWingW)
         );
         
         drawElevatorPanel(uM, uColor, uUseTex, uTransparent, texPanelBtns, elevator);
