@@ -1,16 +1,12 @@
 ﻿#include <iostream>
 #include <string>
-
 #include <GL/glew.h>
 #include <GLFW/glfw3.h>
-
 #include <glm/glm.hpp>
 #include <glm/gtc/type_ptr.hpp>
 #include <glm/gtc/matrix_transform.hpp>
-
 #include "Util.h"
 #include "Camera.h"
-
 #include "Elevator.h"
 #include <cmath>
 #include <algorithm>
@@ -51,7 +47,6 @@ static const float PANEL_THICK = 0.03f;
 static const float BTN_THICK = 0.03f;
 
 static bool gBtnLit[12] = { false }; // da svetle tasteri dok se ne stigne do sprata
-
 
 enum PanelBtnId {
     BTN_F0 = 0, BTN_F1, BTN_F2, BTN_F3, BTN_F4, BTN_F5, BTN_F6, BTN_F7, // spratovi 0..7
@@ -489,7 +484,7 @@ static void drawElevatorPanel(GLint uM, GLint uColor, GLint uUseTex, GLint uTran
     glBindVertexArray((GLuint)prevVAO);
 }
 
-// HUD crosshair u centru 
+// HUD crosshair
 static void drawCrosshairHUD(GLint uM, GLint uV, GLint uP, GLint uColor) {
     glDisable(GL_DEPTH_TEST);
 
@@ -509,7 +504,7 @@ static void drawCrosshairHUD(GLint uM, GLint uV, GLint uP, GLint uColor) {
     glEnable(GL_DEPTH_TEST);
 }
 
-// Crta pravougaonu tablicu sa teksturom oznake sprata
+// Tekstura oznake sprata iznad lifta
 static void drawFloorSign(GLint uM, GLint uUseTex, GLint uColor, GLint uTransparent,
     GLuint texture, const glm::vec3& pos, float width, float height) {
     if (texture != 0) {
@@ -927,27 +922,7 @@ int main() {
 
             // Spoljna vrata lifta na spratu
             glUniform4f(uColor, 0.80f, 0.80f, 0.85f, 1.0f);
-            //float doorX = wallX + 0.06f;
-
-            //float open = (elevator.IsExactlyAtFloor(i) ? elevator.DoorOpen() : 0.0f);
-
-            //// otvara se od sredine ka spolja
-            //float zShift = open * (PORTAL_W * 0.45f); // 0.45 jer svako krilo prelazi pola svog puta
-            //float leftZ = -PORTAL_W * 0.25f - zShift;
-            //float rightZ = PORTAL_W * 0.25f + zShift;
-
-            //// Krilo 1
-            //drawBox(uM,
-            //    glm::vec3(doorX, portalYCenter, leftZ),
-            //    glm::vec3(HALL_DOOR_THICK, PORTAL_H, PORTAL_W * 0.5f - CABIN_DOOR_GAP)
-            //);
-
-            //// Krilo 2
-            //drawBox(uM,
-            //    glm::vec3(doorX, portalYCenter, rightZ),
-            //    glm::vec3(HALL_DOOR_THICK, PORTAL_H, PORTAL_W * 0.5f - CABIN_DOOR_GAP)
-            //);
-            // Vrata drži u debljini zida (malo ka +X da stubovi "pojedu" vrata kad se otvore)
+            
             float doorX = wallX + (WALL_THICK * 0.5f) - (HALL_DOOR_THICK * 0.5f) - 0.001f;
 
 
@@ -996,7 +971,9 @@ int main() {
             float signWidth = 0.4f;   // sirina tablice
             float signHeight = 0.25f;  // visina tablice
             float signY = portalYCenter + PORTAL_H * 0.5f + 0.2f;  // malo iznad otvora
-            float signX = doorX - 0.05f;  // malo prema hodniku da se vidi
+            float signThickness = 0.02f;
+            float signX = wallX - (WALL_THICK * 0.5f) - (signThickness * 0.5f) - 0.002f;
+
 
             drawFloorSign(uM, uUseTex, uColor, uTransparent,
                 texFloorSigns[i],
@@ -1098,9 +1075,6 @@ int main() {
         float cabinDoorX = frontWallX + CABIN_DOOR_DEPTH * 0.5f + 0.05f;
         float cabinDoorY = cabinBaseY + CABIN_H * 0.5f;
 
-        /*float zShiftCab = openCabin * (PORTAL_W * 0.45f);
-
-        float doorWingW = PORTAL_W * 0.5f - CABIN_DOOR_GAP;*/
         float doorWingW = PORTAL_W * 0.5f - CABIN_DOOR_GAP;
         float zShiftCab = openCabin * (PORTAL_W * 0.5f - CABIN_DOOR_GAP * 0.5f);
 
