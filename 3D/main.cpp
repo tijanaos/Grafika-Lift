@@ -923,15 +923,13 @@ int main() {
             // Spoljna vrata lifta na spratu
             glUniform4f(uColor, 0.80f, 0.80f, 0.85f, 1.0f);
             
-            float doorX = wallX + (WALL_THICK * 0.5f) - (HALL_DOOR_THICK * 0.5f) - 0.001f;
+            float doorX = wallX + (WALL_THICK * 0.5f) - (HALL_DOOR_THICK * 0.5f) - 0.01f;
 
 
             float open = (elevator.IsExactlyAtFloor(i) ? elevator.DoorOpen() : 0.0f);
 
-            float wingW = PORTAL_W * 0.5f - CABIN_DOOR_GAP;
-
-            // SHIFT tako da se krilo skroz skloni iza ivice otvora (z = ±PORTAL_W/2)
-            float zShift = open * (PORTAL_W * 0.5f - CABIN_DOOR_GAP * 0.5f);
+            float wingW = (PORTAL_W - CABIN_DOOR_GAP) * 0.5f;
+            float zShift = open * wingW;
 
             float leftZ = -PORTAL_W * 0.25f - zShift;
             float rightZ = PORTAL_W * 0.25f + zShift;
@@ -1072,11 +1070,11 @@ int main() {
         glUniform2f(uTexScale, 1.0f, 1.0f);
         glUniform4f(uColor, 0.70f, 0.70f, 0.75f, 1.0f);
 
-        float cabinDoorX = frontWallX + CABIN_DOOR_DEPTH * 0.5f + 0.05f;
+        float cabinDoorX = frontWallX + CABIN_DOOR_DEPTH * 0.5f + 0.06f;
         float cabinDoorY = cabinBaseY + CABIN_H * 0.5f;
 
-        float doorWingW = PORTAL_W * 0.5f - CABIN_DOOR_GAP;
-        float zShiftCab = openCabin * (PORTAL_W * 0.5f - CABIN_DOOR_GAP * 0.5f);
+        float doorWingW = (PORTAL_W - CABIN_DOOR_GAP) * 0.5f;
+        float zShiftCab = openCabin * doorWingW;
 
 
         float leftZc = -PORTAL_W * 0.25f - zShiftCab;
