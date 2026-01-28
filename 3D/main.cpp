@@ -26,7 +26,7 @@ static const float PORTAL_W = 2.0f;
 static const float PORTAL_H = 2.2f;
 
 // Vrata na zidu sprata (to su "spoljna" vrata lifta)
-static const float HALL_DOOR_THICK = 0.08f;
+static const float HALL_DOOR_THICK = 0.12f;
 
 // Kabinska klizna vrata (2 krila)
 static const float CABIN_DOOR_GAP = 0.02f;     // mala rupa izmedju krila
@@ -841,8 +841,8 @@ int main() {
                 glUniform1i(uUseTex, 1);
                 glActiveTexture(GL_TEXTURE0);
                 glBindTexture(GL_TEXTURE_2D, texFloor);
-                glUniform2f(uTexScale, 1.0f, 1.0f);      // ponavljanje (tweak po ukusu)
-                glUniform4f(uColor, 1, 1, 1, 1);            // bez bojenja (ne tintuj)
+                glUniform2f(uTexScale, 1.0f, 1.0f);    
+                glUniform4f(uColor, 1, 1, 1, 1);            
             }
             else {
                 glUniform1i(uUseTex, 0);
@@ -923,13 +923,14 @@ int main() {
             // Spoljna vrata lifta na spratu
             glUniform4f(uColor, 0.80f, 0.80f, 0.85f, 1.0f);
             
-            float doorX = wallX + (WALL_THICK * 0.5f) - (HALL_DOOR_THICK * 0.5f) - 0.01f;
+            float doorX = wallX + (WALL_THICK * 0.5f) - (HALL_DOOR_THICK * 0.5f) + 0.01f;
 
 
             float open = (elevator.IsExactlyAtFloor(i) ? elevator.DoorOpen() : 0.0f);
 
-            float wingW = (PORTAL_W - CABIN_DOOR_GAP) * 0.5f;
-            float zShift = open * wingW;
+            float wingW = PORTAL_W * 0.5f + 0.05f;
+            float adjustedWingW = PORTAL_W * 0.5f; 
+            float zShift = open * adjustedWingW;
 
             float leftZ = -PORTAL_W * 0.25f - zShift;
             float rightZ = PORTAL_W * 0.25f + zShift;
@@ -1050,8 +1051,8 @@ int main() {
             glUniform4f(uColor, 0.65f, 0.65f, 0.75f, 1.0f);
         }
 
-        float frontWallX = shaftX - CABIN_W * 0.5f; 
-        float sidePanelW = (CABIN_D - PORTAL_W) * 0.5f; 
+        float frontWallX = shaftX - CABIN_W * 0.5f + 0.15; 
+        float sidePanelW = (CABIN_D - (PORTAL_W + 0.1f)) * 0.5f;
         if (sidePanelW < 0.1f) sidePanelW = 0.1f;
 
         // Prednji levi panel (stub)
@@ -1063,33 +1064,6 @@ int main() {
         drawBox(uM,
             glm::vec3(frontWallX, cabinBaseY + CABIN_H * 0.5f, CABIN_D * 0.5f - sidePanelW * 0.5f),
             glm::vec3(ct, CABIN_H, sidePanelW)
-        );
-
-        // --- KABINSKA VRATA ---
-        glUniform1i(uUseTex, 0);
-        glUniform2f(uTexScale, 1.0f, 1.0f);
-        glUniform4f(uColor, 0.70f, 0.70f, 0.75f, 1.0f);
-
-        float cabinDoorX = frontWallX + CABIN_DOOR_DEPTH * 0.5f + 0.06f;
-        float cabinDoorY = cabinBaseY + CABIN_H * 0.5f;
-
-        float doorWingW = (PORTAL_W - CABIN_DOOR_GAP) * 0.5f;
-        float zShiftCab = openCabin * doorWingW;
-
-
-        float leftZc = -PORTAL_W * 0.25f - zShiftCab;
-        float rightZc = PORTAL_W * 0.25f + zShiftCab;
-
-        // Krilo 1
-        drawBox(uM,
-            glm::vec3(cabinDoorX, cabinDoorY, leftZc),
-            glm::vec3(CABIN_DOOR_DEPTH, CABIN_H, doorWingW)
-        );
-
-        // Krilo 2
-        drawBox(uM,
-            glm::vec3(cabinDoorX, cabinDoorY, rightZc),
-            glm::vec3(CABIN_DOOR_DEPTH, CABIN_H, doorWingW)
         );
         
         drawElevatorPanel(uM, uColor, uUseTex, uTransparent, texPanelBtns, elevator);
