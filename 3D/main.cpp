@@ -714,12 +714,27 @@ int main() {
     Shader modelShader("model_lit.vert", "model_lit.frag");
 
     // LAMPA (isti model koristiš na svakom spratu + u kabini)
-    Model mdlLamp("res/models/lamp/lamp.obj");
+    Model mdlLamp("res/models/lamp/lampa.obj");
 
     // 3 razlicite biljke
     Model mdlPlantA("res/models/plants/plantA/plant.obj");
-    Model mdlPlantB("res/models/plants/plantB/planttttt.obj");
-    Model mdlPlantC("res/models/plants/plantC/planttttt.obj");
+    Model mdlPlantB("res/models/plants/plantB/plant.obj");
+    Model mdlPlantC("res/models/plants/plantC/plant.obj");
+
+    // ---------- MODEL SCALE (ručno podešeno po realnim dimenzijama modela) ----------
+    const float S_LAMP = 0.58f;   // lampa: ~0.55m visina
+    const float S_PLANT_A = 0.126f; // plantA: ~1.2m visina
+    const float S_PLANT_B = 0.034f; // plantB: ~1.2m visina (ovaj ti je bio "ogroman")
+    const float S_PLANT_C = 0.89f;  // plantC: ~1.2m visina
+
+    // da biljke "sednu" na pod (jer neki modeli imaju minY < 0)
+    const float PLANT_A_MINY = -0.350951f;
+    const float PLANT_B_MINY = 0.0f;
+    const float PLANT_C_MINY = -0.036059f;
+
+    // za kačenje lampe uz plafon (maxY iz .obj)
+    const float LAMP_MAXY = 1.172644f;
+
 
     // bar 1 biljka po spratu, ukupno bar 3 razlicite
     Model* plants[NUM_FLOORS] = {
@@ -1112,10 +1127,13 @@ int main() {
             // lampa na plafonu sprata
             {
                 glm::mat4 ML(1.0f);
-                ML = glm::translate(ML, glm::vec3(0.0f, y + WALL_H - 0.20f, 0.0f));
-                ML = glm::scale(ML, glm::vec3(0.02f));
+                float ceilingY = y + WALL_H;
+                ML = glm::translate(ML, glm::vec3(0.0f, ceilingY - LAMP_MAXY * S_LAMP, 0.0f));
+                ML = glm::scale(ML, glm::vec3(S_LAMP));
+
                 modelShader.setMat4("uM", ML);
                 mdlLamp.Draw(modelShader);
+
                 glUseProgram(shader);
                 glBindVertexArray(VAO);
             }
@@ -1124,7 +1142,7 @@ int main() {
             {
                 glm::mat4 MP(1.0f);
                 MP = glm::translate(MP, glm::vec3(-HALL_W * 0.5f + 0.8f, y, -HALL_D * 0.5f + 1.2f));
-                MP = glm::scale(MP, glm::vec3(0.02f));
+                MP = glm::scale(MP, glm::vec3(0.2f));
                 modelShader.setMat4("uM", MP);
                 plants[i]->Draw(modelShader);
                 glUseProgram(shader);
@@ -1151,6 +1169,9 @@ int main() {
             MC = glm::scale(MC, glm::vec3(0.30f));
             modelShader.setMat4("uM", MC);
             mdlLamp.Draw(modelShader);
+            glUseProgram(shader);
+            glBindVertexArray(VAO);
+            glActiveTexture(GL_TEXTURE0);
         }
         glUseProgram(shader);
 
