@@ -10,6 +10,41 @@
 #include "Elevator.h"
 #include <cmath>
 #include <algorithm>
+#include "model.hpp"
+
+// svetlo
+static const int MAX_LIGHTS = 32;
+
+struct PointLightCPU {
+    glm::vec3 pos;
+    glm::vec3 color;
+    float intensity;
+};
+
+static void UploadPointLights(GLuint program,
+    GLint uLightCount, GLint uLightPos0, GLint uLightColor0, GLint uLightIntensity0,
+    const std::vector<PointLightCPU>& lights)
+{
+    int count = (int)std::min(lights.size(), (size_t)MAX_LIGHTS);
+    glUseProgram(program);
+    glUniform1i(uLightCount, count);
+
+    if (count == 0) return;
+
+    std::vector<glm::vec3> pos(count), col(count);
+    std::vector<float> inten(count);
+
+    for (int i = 0; i < count; i++) {
+        pos[i] = lights[i].pos;
+        col[i] = lights[i].color;
+        inten[i] = lights[i].intensity;
+    }
+
+    glUniform3fv(uLightPos0, count, &pos[0].x);
+    glUniform3fv(uLightColor0, count, &col[0].x);
+    glUniform1fv(uLightIntensity0, count, inten.data());
+}
+
 
 static bool gInElevator = false;
 static int gHoverBtn = -1;   // koje dugme panel-a "gađaš" pogledom (centar ekrana)
@@ -365,7 +400,7 @@ static void mouse_button_callback(GLFWwindow* window, int button, int action, in
 }
 
 // Crta panel + dugmad (sa hover highlight) , jako komplikovano jer crta teksturu na vrh dugmeta a ne sa strabe
-static void drawElevatorPanel(GLint uM, GLint uColor, GLint uUseTex, GLint uTransparent,
+static void drawElevatorPanel(GLint uM, GLint uColor, GLint uUseTex, GLint uTransparent, GLint uEmissive,
     const GLuint* btnTextures, const Elevator& elev)
 {
     // --- Jedan mali VAO/VBO za "nalepnicu" (quad) sa ispravnim atributima:
@@ -429,7 +464,7 @@ static void drawElevatorPanel(GLint uM, GLint uColor, GLint uUseTex, GLint uTran
     for (const PanelBtn& b : gPanelBtns)
     {
         bool hover = (b.id == gHoverBtn);
-        bool lit = (b.id >= BTN_F0 && b.id <= BTN_F7) ? gBtnLit[b.id] : false;
+        bool lit = gBtnLit[b.id];
 
         glm::vec3 btnPos(
             panelCenter.x + b.cx,
@@ -451,8 +486,13 @@ static void drawElevatorPanel(GLint uM, GLint uColor, GLint uUseTex, GLint uTran
             else       glUniform4f(uColor, 0.50f, 0.50f, 0.52f, 1.0f);
         }
 
+        if (lit) glUniform3f(uEmissive, 0.18f, 0.16f, 0.08f);
+        else     glUniform3f(uEmissive, 0.0f, 0.0f, 0.0f);
 
         drawBox(uM, btnPos, glm::vec3(b.w, b.h, BTN_THICK));
+
+        glUniform3f(uEmissive, 0.0f, 0.0f, 0.0f);
+
 
         // 3) Ikonica (tekstura) kao JEDAN QUAD na PREDNJOJ strani dugmeta
         GLuint tex = btnTextures[b.id];
@@ -625,6 +665,14 @@ int main() {
     int uUseTex = glGetUniformLocation(shader, "useTex");
     int uTexScale = glGetUniformLocation(shader, "uTexScale");
     int uTransparent = glGetUniformLocation(shader, "transparent");
+    GLint uViewPos = glGetUniformLocation(shader, "uViewPos");
+    GLint uEmissive = glGetUniformLocation(shader, "uEmissive");
+
+    GLint uLightCount = glGetUniformLocation(shader, "uLightCount");
+    GLint uLightPos0 = glGetUniformLocation(shader, "uLightPos[0]");
+    GLint uLightColor0 = glGetUniformLocation(shader, "uLightColor[0]");
+    GLint uLightIntensity0 = glGetUniformLocation(shader, "uLightIntensity[0]");
+
 
     // default stanje
     glUniform1i(uTex, 0);
@@ -662,6 +710,21 @@ int main() {
     texPanelBtns[11] = loadImageToTexture("res/fan.png");
 
     GLuint texIme = loadImageToTexture("res/ime.png");
+
+    Shader modelShader("model_lit.vert", "model_lit.frag");
+
+    // LAMPA (isti model koristiš na svakom spratu + u kabini)
+    Model mdlLamp("res/models/lamp/lamp.obj");
+
+    // 3 razlicite biljke
+    Model mdlPlantA("res/models/plants/plantA/plant.obj");
+    Model mdlPlantB("res/models/plants/plantB/plant.obj");
+    Model mdlPlantC("res/models/plants/plantC/plant.obj");
+
+    // bar 1 biljka po spratu, ukupno bar 3 razlicite
+    Model* plants[NUM_FLOORS] = {
+        &mdlPlantA, &mdlPlantB, &mdlPlantC, &mdlPlantA, &mdlPlantB, &mdlPlantC, &mdlPlantA, &mdlPlantB
+    };
 
     // --- Kamera ---
     float prY = 2.0f * FLOOR_H; // PR je index 1: SU(0), PR(1)
@@ -737,6 +800,7 @@ int main() {
     int uP = glGetUniformLocation(shader, "uP");
     int uColor = glGetUniformLocation(shader, "uColor");
 
+
     glClearColor(0.1f, 0.12f, 0.15f, 1.0f);
 
     while (!glfwWindowShouldClose(window)) {
@@ -746,6 +810,10 @@ int main() {
 
         processInput(window);
         elevator.Update(gDeltaTime);
+        // STOP i VENT su realno “upaljeni” dok traju
+        gBtnLit[BTN_STOP] = (elevator.State() == ElevatorState::Stopped);
+        gBtnLit[BTN_VENT] = elevator.VentOn();
+
 
         // Ugasi taster sprata kad lift stigne i vrata su potpuno otvorena
         static bool sWasFullyOpen = false;
@@ -829,6 +897,65 @@ int main() {
 
         glUniformMatrix4fv(uV, 1, GL_FALSE, glm::value_ptr(V));
         glUniformMatrix4fv(uP, 1, GL_FALSE, glm::value_ptr(P));
+
+        std::vector<PointLightCPU> lights;
+        lights.reserve(NUM_FLOORS + 1 + 12);
+
+        // boja svetla (toplo belo)
+        glm::vec3 lampColor(1.0f, 0.96f, 0.88f);
+
+        // 1) LAMPE PO SPRATOVIMA (svaki sprat ima lampu + point light)
+        for (int i = 0; i < NUM_FLOORS; i++) {
+            float y = i * FLOOR_H;
+            lights.push_back({ glm::vec3(0.0f, y + WALL_H - 0.20f, 0.0f), lampColor, 1.10f });
+        }
+
+        // 2) LAMPA U KABINI (svetlo se “vozi” sa liftom)
+        float shaftX = getShaftX();
+        float cabinBaseY = elevator.CabinBaseY();
+        lights.push_back({ glm::vec3(shaftX, cabinBaseY + CABIN_H - 0.18f, 0.0f), lampColor, 1.10f });
+
+        // 3) DUGMIĆI NA PANELU KAO SLABA SVETLA (samo kad su upaljeni)
+        {
+            float leftWallZ = -CABIN_D * 0.5f;
+            glm::vec3 panelCenter(shaftX, cabinBaseY + 1.2f, leftWallZ + (PANEL_THICK * 0.5f) + 0.01f);
+            float faceOffset = (PANEL_THICK * 0.5f + BTN_THICK * 0.5f) + 0.02f;
+
+            for (const auto& b : gPanelBtns) {
+                if (!gBtnLit[b.id]) continue;
+                glm::vec3 btnPos(panelCenter.x + b.cx, panelCenter.y + b.cy, panelCenter.z + faceOffset);
+                lights.push_back({ btnPos, glm::vec3(1.0f, 0.90f, 0.60f), 0.25f });
+            }
+        }
+
+        // --- Upload svetala u BASIC shader ---
+        glUseProgram(shader);
+        glUniform3f(uViewPos, camera.Position.x, camera.Position.y, camera.Position.z);
+        glUniform3f(uEmissive, 0.0f, 0.0f, 0.0f);
+        UploadPointLights(shader, uLightCount, uLightPos0, uLightColor0, uLightIntensity0, lights);
+
+        // --- Upload svetala u MODEL shader ---
+        static bool modelUniformsCached = false;
+        static GLint muViewPos, muLightCount, muLightPos0, muLightColor0, muLightIntensity0;
+
+        if (!modelUniformsCached) {
+            muViewPos = glGetUniformLocation(modelShader.ID, "uViewPos");
+            muLightCount = glGetUniformLocation(modelShader.ID, "uLightCount");
+            muLightPos0 = glGetUniformLocation(modelShader.ID, "uLightPos[0]");
+            muLightColor0 = glGetUniformLocation(modelShader.ID, "uLightColor[0]");
+            muLightIntensity0 = glGetUniformLocation(modelShader.ID, "uLightIntensity[0]");
+            modelUniformsCached = true;
+        }
+
+        modelShader.use();
+        modelShader.setMat4("uV", V);
+        modelShader.setMat4("uP", P);
+        modelShader.setVec3("uViewPos", camera.Position);
+        UploadPointLights(modelShader.ID, muLightCount, muLightPos0, muLightColor0, muLightIntensity0, lights);
+
+        // vrati se na basic pre crtanja kocki
+        glUseProgram(shader);
+
 
         glBindVertexArray(VAO);
 
@@ -979,13 +1106,50 @@ int main() {
                 glm::vec3(signX, signY, 0.0f),
                 signWidth, signHeight);
 
+            // --- MODELI NA SPRATU: lampa + biljka ---
+            modelShader.use();
+
+            // lampa na plafonu sprata
+            {
+                glm::mat4 ML(1.0f);
+                ML = glm::translate(ML, glm::vec3(0.0f, y + WALL_H - 0.20f, 0.0f));
+                ML = glm::scale(ML, glm::vec3(0.35f));
+                modelShader.setMat4("uM", ML);
+                mdlLamp.Draw(modelShader);
+            }
+
+            // biljka (primer pozicije u cosku hola)
+            {
+                glm::mat4 MP(1.0f);
+                MP = glm::translate(MP, glm::vec3(-HALL_W * 0.5f + 0.8f, y, -HALL_D * 0.5f + 1.2f));
+                MP = glm::scale(MP, glm::vec3(0.55f));
+                modelShader.setMat4("uM", MP);
+                plants[i]->Draw(modelShader);
+            }
+
+            // vrati se na basic shader da ostatak scene radi normalno
+            glUseProgram(shader);
+
+
         }
 
         // ---------- Okvir okna lifta  ----------
-        float shaftX = getShaftX();
+        shaftX = getShaftX();
         // ---------- Kabina lifta ----------
-        float cabinBaseY = elevator.CabinBaseY();
+        cabinBaseY = elevator.CabinBaseY();
         float openCabin = elevator.DoorOpen();
+
+        // --- LAMPA U KABINI (model) ---
+        modelShader.use();
+        {
+            glm::mat4 MC(1.0f);
+            MC = glm::translate(MC, glm::vec3(shaftX, cabinBaseY + CABIN_H - 0.18f, 0.0f));
+            MC = glm::scale(MC, glm::vec3(0.30f));
+            modelShader.setMat4("uM", MC);
+            mdlLamp.Draw(modelShader);
+        }
+        glUseProgram(shader);
+
 
         // telo kabine
         if (texWall != 0) {
@@ -1066,7 +1230,7 @@ int main() {
             glm::vec3(ct, CABIN_H, sidePanelW)
         );
         
-        drawElevatorPanel(uM, uColor, uUseTex, uTransparent, texPanelBtns, elevator);
+        drawElevatorPanel(uM, uColor, uUseTex, uTransparent, uEmissive, texPanelBtns, elevator);
         glUniform4f(uColor, 0.9f, 0.2f, 0.9f, 1.0f);
 
         drawCrosshairHUD(uM, uV, uP, uColor);
