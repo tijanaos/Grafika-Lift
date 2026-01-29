@@ -163,6 +163,15 @@ static const float HALL_D = 10.0f;        // dubina hodnika (z)
 static const float WALL_THICK = 0.20f;
 static const float WALL_H = 2.6f;
 
+const float MARG_X = 0.8f;  // koliko od zida ka unutra
+const float MARG_Z = 1.2f;
+
+const float xL = -HALL_W * 0.5f + MARG_X;
+const float xR = HALL_W * 0.5f - MARG_X;
+const float zB = -HALL_D * 0.5f + MARG_Z; // back (zadnji zid)
+const float zF = HALL_D * 0.5f - MARG_Z; // front (prednji zid)
+
+
 // okno lifta desno
 static const float SHAFT_W = 2.2f;
 static const float SHAFT_D = 2.6f;
@@ -718,18 +727,18 @@ int main() {
 
     // 3 razlicite biljke
     Model mdlPlantA("res/models/plants/plantA/plant.obj");
-    Model mdlPlantB("res/models/plants/plantA/plant.obj");
-    Model mdlPlantC("res/models/plants/plantA/plant.obj");
+    Model mdlPlantB("res/models/plants/plantB/plant.obj");
+    Model mdlPlantC("res/models/plants/plantC/plant.obj");
 
     // ---------- MODEL SCALE (ručno podešeno po realnim dimenzijama modela) ----------
     const float S_LAMP = 0.58f;   // lampa: ~0.55m visina
-    const float S_PLANT_A = 0.126f; // plantA: ~1.2m visina
-    const float S_PLANT_B = 0.034f; // plantB: ~1.2m visina (ovaj ti je bio "ogroman")
-    const float S_PLANT_C = 0.89f;  // plantC: ~1.2m visina
+    const float S_PLANT_A = 1.326f; // plantA: ona niska slatka
+    const float S_PLANT_B = 1.426f; // plantB: bela saksija
+    const float S_PLANT_C = 0.126f;  // glina iz minecraft saksija
 
     // da biljke "sednu" na pod (jer neki modeli imaju minY < 0)
-    const float PLANT_A_MINY = -0.350951f;
-    const float PLANT_B_MINY = 0.0f;
+    const float PLANT_A_MINY = -0.04f;
+    const float PLANT_B_MINY = -0.45f;
     const float PLANT_C_MINY = -0.036059f;
 
     // za kačenje lampe uz plafon (maxY iz .obj)
@@ -817,6 +826,28 @@ int main() {
 
 
     glClearColor(0.1f, 0.12f, 0.15f, 1.0f);
+
+    auto drawPlantAt = [&](Model* plant, float floorY, float x, float z)
+        {
+            modelShader.use();
+
+            float plantScale, plantMinY;
+            if (plant == &mdlPlantA) { plantScale = S_PLANT_A; plantMinY = PLANT_A_MINY; }
+            else if (plant == &mdlPlantB) { plantScale = S_PLANT_B; plantMinY = PLANT_B_MINY; }
+            else { plantScale = S_PLANT_C; plantMinY = PLANT_C_MINY; }
+
+            glm::mat4 MP(1.0f);
+            MP = glm::translate(MP, glm::vec3(x, floorY - plantMinY * plantScale, z));
+            MP = glm::scale(MP, glm::vec3(plantScale));
+            modelShader.setMat4("uM", MP);
+
+            plant->Draw(modelShader);
+
+            // vrati stanje za “basic” geometriju
+            glUseProgram(shader);
+            glBindVertexArray(VAO);
+        };
+
 
     while (!glfwWindowShouldClose(window)) {
         float current = (float)glfwGetTime();
@@ -1138,13 +1169,46 @@ int main() {
                 glBindVertexArray(VAO);
             }
 
-            // biljka (primer pozicije u cosku hola)
+            // --- 3 biljke u 3 ćoška hola na svakom spratu ---
+
+            // uglovi (margine od zidova)
+            const float xL = -HALL_W * 0.5f + 0.8f;
+            const float xR = HALL_W * 0.5f - 0.8f;
+            const float zB = -HALL_D * 0.5f + 1.2f;
+            const float zF = HALL_D * 0.5f - 1.2f;
+
+            // Plant A (levo-zadnje)
             {
+                modelShader.use();
                 glm::mat4 MP(1.0f);
-                MP = glm::translate(MP, glm::vec3(-HALL_W * 0.5f + 0.8f, y, -HALL_D * 0.5f + 1.2f));
-                MP = glm::scale(MP, glm::vec3(10.0f));
+                MP = glm::translate(MP, glm::vec3(xL, y - PLANT_A_MINY * S_PLANT_A, zB));
+                MP = glm::scale(MP, glm::vec3(S_PLANT_A));
                 modelShader.setMat4("uM", MP);
-                plants[i]->Draw(modelShader);
+                mdlPlantA.Draw(modelShader);
+                glUseProgram(shader);
+                glBindVertexArray(VAO);
+            }
+
+            // Plant B (desno-zadnje)
+            {
+                modelShader.use();
+                glm::mat4 MP(1.0f);
+                MP = glm::translate(MP, glm::vec3(xR, y - PLANT_B_MINY * S_PLANT_B, zB));
+                MP = glm::scale(MP, glm::vec3(S_PLANT_B));
+                modelShader.setMat4("uM", MP);
+                mdlPlantB.Draw(modelShader);
+                glUseProgram(shader);
+                glBindVertexArray(VAO);
+            }
+
+            // Plant C (levo-prednje)
+            {
+                modelShader.use();
+                glm::mat4 MP(1.0f);
+                MP = glm::translate(MP, glm::vec3(xL, y - PLANT_C_MINY * S_PLANT_C, zF));
+                MP = glm::scale(MP, glm::vec3(S_PLANT_C));
+                modelShader.setMat4("uM", MP);
+                mdlPlantC.Draw(modelShader);
                 glUseProgram(shader);
                 glBindVertexArray(VAO);
             }
