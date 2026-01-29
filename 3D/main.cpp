@@ -718,8 +718,8 @@ int main() {
 
     // 3 razlicite biljke
     Model mdlPlantA("res/models/plants/plantA/plant.obj");
-    Model mdlPlantB("res/models/plants/plantB/plant.obj");
-    Model mdlPlantC("res/models/plants/plantC/plant.obj");
+    Model mdlPlantB("res/models/plants/plantA/plant.obj");
+    Model mdlPlantC("res/models/plants/plantA/plant.obj");
 
     // ---------- MODEL SCALE (ručno podešeno po realnim dimenzijama modela) ----------
     const float S_LAMP = 0.58f;   // lampa: ~0.55m visina
@@ -1142,7 +1142,7 @@ int main() {
             {
                 glm::mat4 MP(1.0f);
                 MP = glm::translate(MP, glm::vec3(-HALL_W * 0.5f + 0.8f, y, -HALL_D * 0.5f + 1.2f));
-                MP = glm::scale(MP, glm::vec3(0.2f));
+                MP = glm::scale(MP, glm::vec3(10.0f));
                 modelShader.setMat4("uM", MP);
                 plants[i]->Draw(modelShader);
                 glUseProgram(shader);
