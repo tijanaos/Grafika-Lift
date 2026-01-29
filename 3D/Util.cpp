@@ -14,19 +14,58 @@ unsigned int compileShader(GLenum type, const char* source)
     //Uzima kod u fajlu na putanji "source", kompajlira ga i vraca sejder tipa "type"
     //Citanje izvornog koda iz fajla
     std::string content = "";
-    std::ifstream file(source);
+    std::ifstream file(source, std::ios::binary);
     std::stringstream ss;
     if (file.is_open())
     {
         ss << file.rdbuf();
         file.close();
         std::cout << "Uspjesno procitao fajl sa putanje \"" << source << "\"!" << std::endl;
+
     }
     else {
         ss << "";
         std::cout << "Greska pri citanju fajla sa putanje \"" << source << "\"!" << std::endl;
     }
     std::string temp = ss.str();
+    
+    // Remove UTF-8 BOM if present (0xEF 0xBB 0xBF)
+    if (temp.length() >= 3 && 
+        (unsigned char)temp[0] == 0xEF && 
+        (unsigned char)temp[1] == 0xBB && 
+        (unsigned char)temp[2] == 0xBF) {
+        temp = temp.substr(3);
+    }
+    
+    // Remove any other BOM variants
+    // UTF-16 LE BOM: 0xFF 0xFE
+    if (temp.length() >= 2 && 
+        (unsigned char)temp[0] == 0xFF && 
+        (unsigned char)temp[1] == 0xFE) {
+        temp = temp.substr(2);
+    }
+    // UTF-16 BE BOM: 0xFE 0xFF
+    if (temp.length() >= 2 && 
+        (unsigned char)temp[0] == 0xFE && 
+        (unsigned char)temp[1] == 0xFF) {
+        temp = temp.substr(2);
+    }
+    
+    // Clean up: remove any non-ASCII or problematic characters at the start
+    // Keep only printable ASCII, newlines, tabs, and # for shader code
+    size_t startPos = 0;
+    while (startPos < temp.length() && startPos < 10) {
+        unsigned char c = (unsigned char)temp[startPos];
+        // Allow: printable ASCII (32-126), newline (10), carriage return (13), tab (9)
+        if (c == 0x0A || c == 0x0D || c == 0x09 || (c >= 0x20 && c <= 0x7E)) {
+            break;
+        }
+        startPos++;
+    }
+    if (startPos > 0) {
+        temp = temp.substr(startPos);
+    }
+    
     const char* sourceCode = temp.c_str(); //Izvorni kod sejdera koji citamo iz fajla na putanji "source"
 
     int shader = glCreateShader(type); //Napravimo prazan sejder odredjenog tipa (vertex ili fragment)
@@ -137,7 +176,7 @@ GLFWcursor* loadImageToCursor(const char* filePath) {
         image.height = TextureHeight;
         image.pixels = ImageData;
 
-        // Tacka na površini slike kursora koja se ponaša kao hitboks
+        // Tacka na povrï¿½ini slike kursora koja se ponaï¿½a kao hitboks
         int hotspotX = image.width / 6;
         int hotspotY = image.height / 6;
 

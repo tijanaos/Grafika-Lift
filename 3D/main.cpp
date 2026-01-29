@@ -718,8 +718,8 @@ int main() {
 
     // 3 razlicite biljke
     Model mdlPlantA("res/models/plants/plantA/plant.obj");
-    Model mdlPlantB("res/models/plants/plantB/plant.obj");
-    Model mdlPlantC("res/models/plants/plantC/plant.obj");
+    Model mdlPlantB("res/models/plants/plantB/planttttt.obj");
+    Model mdlPlantC("res/models/plants/plantC/planttttt.obj");
 
     // bar 1 biljka po spratu, ukupno bar 3 razlicite
     Model* plants[NUM_FLOORS] = {
@@ -1113,18 +1113,22 @@ int main() {
             {
                 glm::mat4 ML(1.0f);
                 ML = glm::translate(ML, glm::vec3(0.0f, y + WALL_H - 0.20f, 0.0f));
-                ML = glm::scale(ML, glm::vec3(0.35f));
+                ML = glm::scale(ML, glm::vec3(0.02f));
                 modelShader.setMat4("uM", ML);
                 mdlLamp.Draw(modelShader);
+                glUseProgram(shader);
+                glBindVertexArray(VAO);
             }
 
             // biljka (primer pozicije u cosku hola)
             {
                 glm::mat4 MP(1.0f);
                 MP = glm::translate(MP, glm::vec3(-HALL_W * 0.5f + 0.8f, y, -HALL_D * 0.5f + 1.2f));
-                MP = glm::scale(MP, glm::vec3(0.55f));
+                MP = glm::scale(MP, glm::vec3(0.02f));
                 modelShader.setMat4("uM", MP);
                 plants[i]->Draw(modelShader);
+                glUseProgram(shader);
+                glBindVertexArray(VAO);
             }
 
             // vrati se na basic shader da ostatak scene radi normalno

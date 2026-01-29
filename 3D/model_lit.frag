@@ -1,5 +1,4 @@
 ﻿#version 330 core
-
 #define MAX_LIGHTS 32
 
 uniform sampler2D uDiffMap1;

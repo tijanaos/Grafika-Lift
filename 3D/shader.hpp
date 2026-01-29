@@ -27,9 +27,9 @@ public:
         fShaderFile.exceptions(std::ifstream::failbit | std::ifstream::badbit);
         try
         {
-            // open files
-            vShaderFile.open(vertexPath);
-            fShaderFile.open(fragmentPath);
+            // open files in binary mode to avoid encoding issues
+            vShaderFile.open(vertexPath, std::ios::binary);
+            fShaderFile.open(fragmentPath, std::ios::binary);
             std::stringstream vShaderStream, fShaderStream;
             // read file's buffer contents into streams
             vShaderStream << vShaderFile.rdbuf();
@@ -40,6 +40,69 @@ public:
             // convert stream into string
             vertexCode = vShaderStream.str();
             fragmentCode = fShaderStream.str();
+            
+            // Remove UTF-8 BOM if present (0xEF 0xBB 0xBF)
+            if (vertexCode.length() >= 3 && 
+                (unsigned char)vertexCode[0] == 0xEF && 
+                (unsigned char)vertexCode[1] == 0xBB && 
+                (unsigned char)vertexCode[2] == 0xBF) {
+                vertexCode = vertexCode.substr(3);
+            }
+            if (fragmentCode.length() >= 3 && 
+                (unsigned char)fragmentCode[0] == 0xEF && 
+                (unsigned char)fragmentCode[1] == 0xBB && 
+                (unsigned char)fragmentCode[2] == 0xBF) {
+                fragmentCode = fragmentCode.substr(3);
+            }
+            
+            // Remove any other BOM variants
+            // UTF-16 LE BOM: 0xFF 0xFE
+            if (vertexCode.length() >= 2 && 
+                (unsigned char)vertexCode[0] == 0xFF && 
+                (unsigned char)vertexCode[1] == 0xFE) {
+                vertexCode = vertexCode.substr(2);
+            }
+            if (fragmentCode.length() >= 2 && 
+                (unsigned char)fragmentCode[0] == 0xFF && 
+                (unsigned char)fragmentCode[1] == 0xFE) {
+                fragmentCode = fragmentCode.substr(2);
+            }
+            // UTF-16 BE BOM: 0xFE 0xFF
+            if (vertexCode.length() >= 2 && 
+                (unsigned char)vertexCode[0] == 0xFE && 
+                (unsigned char)vertexCode[1] == 0xFF) {
+                vertexCode = vertexCode.substr(2);
+            }
+            if (fragmentCode.length() >= 2 && 
+                (unsigned char)fragmentCode[0] == 0xFE && 
+                (unsigned char)fragmentCode[1] == 0xFF) {
+                fragmentCode = fragmentCode.substr(2);
+            }
+            
+            // Clean up: remove any non-ASCII or problematic characters at the start
+            size_t startPos = 0;
+            while (startPos < vertexCode.length() && startPos < 10) {
+                unsigned char c = (unsigned char)vertexCode[startPos];
+                if (c == 0x0A || c == 0x0D || c == 0x09 || (c >= 0x20 && c <= 0x7E)) {
+                    break;
+                }
+                startPos++;
+            }
+            if (startPos > 0) {
+                vertexCode = vertexCode.substr(startPos);
+            }
+            
+            startPos = 0;
+            while (startPos < fragmentCode.length() && startPos < 10) {
+                unsigned char c = (unsigned char)fragmentCode[startPos];
+                if (c == 0x0A || c == 0x0D || c == 0x09 || (c >= 0x20 && c <= 0x7E)) {
+                    break;
+                }
+                startPos++;
+            }
+            if (startPos > 0) {
+                fragmentCode = fragmentCode.substr(startPos);
+            }
         }
         catch (std::ifstream::failure& e)
         {

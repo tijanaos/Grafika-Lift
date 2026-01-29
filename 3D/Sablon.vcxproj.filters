@@ -33,9 +33,6 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />
-    <None Include="basic.frag">
-      <Filter>Source Files\Shader Files</Filter>
-    </None>
     <None Include="basic.vert">
       <Filter>Source Files\Shader Files</Filter>
     </None>
@@ -43,6 +40,9 @@
       <Filter>Source Files\Shader Files</Filter>
     </None>
     <None Include="model_lit.frag">
+      <Filter>Source Files\Shader Files</Filter>
+    </None>
+    <None Include="basic.frag">
       <Filter>Source Files\Shader Files</Filter>
     </None>
   </ItemGroup>
