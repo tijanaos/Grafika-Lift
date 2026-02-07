@@ -1220,7 +1220,7 @@ int main() {
             if (topH < 0.1f) topH = 0.1f;
 
             // 1) deo iznad otvora
-            drawBoxReversed(uM,
+            drawBox(uM,
                 glm::vec3(wallX, portalYCenter + PORTAL_H * 0.5f + topH * 0.5f, 0.0f),
                 glm::vec3(WALL_THICK, topH, HALL_D)
             );
@@ -1230,13 +1230,13 @@ int main() {
             if (sideW < 0.1f) sideW = 0.1f;
 
             // stub na -Z strani otvora
-            drawBoxReversed(uM,
+            drawBox(uM,
                 glm::vec3(wallX, portalYCenter, -(PORTAL_W * 0.5f + sideW * 0.5f)),
                 glm::vec3(WALL_THICK, PORTAL_H, sideW)
             );
 
             // stub na +Z strani otvora
-            drawBoxReversed(uM,
+            drawBox(uM,
                 glm::vec3(wallX, portalYCenter, +(PORTAL_W * 0.5f + sideW * 0.5f)),
                 glm::vec3(WALL_THICK, PORTAL_H, sideW)
             );
@@ -1425,10 +1425,11 @@ int main() {
 
         // 3. DESNI ZID (na kom stoji panel, to je +Z strana)
         // Ovaj zid se gleda iz kabine (iz -Z), pa treba obrnuti front face
-        drawBoxReversed(uM,
+        drawBox(uM,
             glm::vec3(shaftX, cabinBaseY + CABIN_H * 0.5f, CABIN_D * 0.5f),
             glm::vec3(CABIN_W, CABIN_H, ct)
         );
+
 
         // 4. PLAFON
         drawBox(uM,

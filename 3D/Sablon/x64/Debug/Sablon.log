@@ -1,3 +1,3 @@
 ﻿  main.cpp
-D:\Faks\4. cetvrta godina\7. SEMESTAR\Grafika\Projekti\3D\main.cpp(1458,26): warning C4244: 'initializing': conversion from 'double' to 'float', possible loss of data
+D:\Faks\4. cetvrta godina\7. SEMESTAR\Grafika\Projekti\3D\main.cpp(1459,26): warning C4244: 'initializing': conversion from 'double' to 'float', possible loss of data
   Sablon.vcxproj -> D:\Faks\4. cetvrta godina\7. SEMESTAR\Grafika\Projekti\3D\x64\Debug\Sablon.exe
