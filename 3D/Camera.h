@@ -18,7 +18,7 @@ public:
 
     void ProcessMouseMovement(float xoffset, float yoffset, bool constrainPitch = true);
 
-    // Kretanje je po XZ (planarno), kao u specifikaciji
+    // Kretanje je po XZ (planarno)
     void MoveForward(float dt);
     void MoveBackward(float dt);
     void MoveRight(float dt);

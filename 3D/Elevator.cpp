@@ -1,8 +1,8 @@
 #include "Elevator.h"
 #include <cmath>
 
-static const float MOVE_SPEED = 2.0f;    // jedinica: world units / s
-static const float DOOR_SPEED = 1.8f;    // koliko brzo doorOpen ide ka 0/1 (1/s)
+static const float MOVE_SPEED = 2.0f;    
+static const float DOOR_SPEED = 1.8f;    
 static const float DOOR_OPEN_TIME = 5.0f;
 
 Elevator::Elevator(int numFloors_, float floorHeight, int startFloorIdx)
@@ -106,7 +106,7 @@ void Elevator::PressStopToggle() {
 void Elevator::ToggleVent() {
     ventOn = !ventOn;
     if (ventOn) {
-        // ugasi kad stigne do prvog "sledeceg" sprata
+        // ugasi kad stigne do prvog sledeceg sprata
         if (state == ElevatorState::Moving || state == ElevatorState::Stopped) {
             ventAutoOffFloor = targetFloor;
         }

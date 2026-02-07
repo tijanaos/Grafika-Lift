@@ -47,27 +47,27 @@ static void UploadPointLights(GLuint program,
 
 
 static bool gInElevator = false;
-static int gHoverBtn = -1;   // koje dugme panel-a "gađaš" pogledom (centar ekrana)
+static int gHoverBtn = -1;   // koje dugme panel-a gledam
 
 // Dimenzije kabine lifta
-static const int ELEV_START_FLOOR_IDX = 2; // na pocetku je sprat "1" (SU=0, PR=1, 1=2)
+static const int ELEV_START_FLOOR_IDX = 2; // na pocetku je na prvom spratu 
 static const float CABIN_W = 2.4f;
 static const float CABIN_H = 2.2f;
 static const float CABIN_D = 2.8f;
 static const float DOOR_THICK = 0.06f;
 
-// Otvor (portal) na zidu sprata (ulaz u lift)
+// Portal na zidu sprata (ulaz u lift)
 static const float PORTAL_W = 2.0f;
 static const float PORTAL_H = 2.2f;
 
-// Vrata na zidu sprata (to su "spoljna" vrata lifta)
+// Vrata na zidu sprata 
 static const float HALL_DOOR_THICK = 0.12f;
 
 // Kabinska klizna vrata (2 krila)
 static const float CABIN_DOOR_GAP = 0.02f;     // mala rupa izmedju krila
 static const float CABIN_DOOR_DEPTH = 0.05f;   // debljina krila po X (jer su na strani ka hodniku)
 
-// ---------------- Spoljni "call" taster pored vrata (na svakom spratu) ----------------
+// ---------------- Spoljni call taster pored vrata (na svakom spratu) ----------------
 static const float HALL_CALL_BTN_W = 0.14f;     // sirina po Z
 static const float HALL_CALL_BTN_H = 0.18f;     // visina po Y
 static const float HALL_CALL_BTN_THICK = 0.03f; // debljina po X
@@ -123,8 +123,6 @@ static const PanelBtn gPanelBtns[] = {
     { BTN_STOP,  -0.14f, -0.40f, 0.22f, 0.12f },
     { BTN_VENT,  +0.14f, -0.40f, 0.22f, 0.12f },
 };
-
-// -------------------- Globalno za mouse callback --------------------
 static Camera* gCamera = nullptr;
 static bool gFirstMouse = true;
 static float gLastX = 0.0f;
@@ -137,11 +135,10 @@ static float gLastFrame = 0.0f;
 static const float TARGET_FPS = 75.0f;
 static const float FRAME_TIME = 1.0f / TARGET_FPS;
 
-// Depth test and back-face culling settings
+// Depth test i back-face culling 
 static bool gDepthTestEnabled = true;
 static bool gBackFaceCullingEnabled = false;
 
-// Quad VAO for texture rendering (moved here so it's accessible to drawImeTexture)
 static GLuint gQuadVAO = 0, gQuadVBO = 0;
 
 static void framebuffer_size_callback(GLFWwindow* window, int width, int height) {
@@ -169,7 +166,7 @@ static const float FLOOR_H = 3.0f;        // visina sprata
 static const float SLAB_THICK = 0.12f;
 static bool gHallCallLit[NUM_FLOORS] = { false }; // svetli dok lift ne stigne
 
-static const float HALL_W = 12.0f;        // širina hodnika (x)
+static const float HALL_W = 12.0f;        // sirina hodnika (x)
 static const float HALL_D = 10.0f;        // dubina hodnika (z)
 static const float WALL_THICK = 0.20f;
 static const float WALL_H = 2.6f;
@@ -181,7 +178,6 @@ const float xL = -HALL_W * 0.5f + MARG_X;
 const float xR = HALL_W * 0.5f - MARG_X;
 const float zB = -HALL_D * 0.5f + MARG_Z; // back (zadnji zid)
 const float zF = HALL_D * 0.5f - MARG_Z; // front (prednji zid)
-
 
 // okno lifta desno
 static const float SHAFT_W = 2.2f;
@@ -248,7 +244,7 @@ static void key_callback(GLFWwindow* window, int key, int scancode, int action, 
         gElev->RequestFloor(idx);
         return;
     }
-    // Pozovi lift na sprat na kom si (dev test) - C
+    // Pozovi lift na sprat na kom si - C
     if (key == GLFW_KEY_C) {
         // Ako si van lifta -> proveri da li si blizu vrata
         if (!gInElevator) {
@@ -301,7 +297,6 @@ static void drawCube() {
         glDrawArrays(GL_TRIANGLE_FAN, i * 4, 4);
     }
 }
-
 // helper za crtanje "kvadra" iz kocke (pozicija + skala)
 static void drawBox(GLint uM, const glm::vec3& pos, const glm::vec3& scale) {
     glm::mat4 M(1.0f);
@@ -311,17 +306,8 @@ static void drawBox(GLint uM, const glm::vec3& pos, const glm::vec3& scale) {
     drawCube();
 }
 
-// helper za crtanje "kvadra" sa obrnutim front face-om (za zidove koji se gledaju iznutra)
-static void drawBoxReversed(GLint uM, const glm::vec3& pos, const glm::vec3& scale) {
-    GLint prevFrontFace;
-    glGetIntegerv(GL_FRONT_FACE, &prevFrontFace);
-    glFrontFace(GL_CW); // Obrni front face za ovaj zid
-    drawBox(uM, pos, scale);
-    glFrontFace(prevFrontFace); // Vrati nazad
-}
-
 static glm::vec3 cameraForwardFromView(const Camera& cam) {
-    // forward iz view matrice (ne zavisi od toga da li Camera ima "Front" polje)
+    // forward iz view matrice 
     glm::mat4 invV = glm::inverse(cam.GetViewMatrix());
     glm::vec3 camPlusZ = glm::normalize(glm::vec3(invV[2])); // kamera +Z (unazad)
     return -camPlusZ; // forward
@@ -382,7 +368,7 @@ static int hitTestPanelCenterRay(const Camera& cam, const Elevator& elev) {
     float panelCenterZ = leftWallZ + (PANEL_THICK * 0.5f) + 0.01f;
     glm::vec3 panelCenter(shaftX, cabinBaseY + 1.2f, panelCenterZ);
 
-    glm::vec3 N(0.0f, 0.0f, 1.0f); // Normala ka +Z
+    glm::vec3 N(0.0f, 0.0f, 1.0f); 
     glm::vec3 O = cam.Position;
     glm::vec3 D = glm::normalize(cameraForwardFromView(cam));
 
@@ -396,7 +382,6 @@ static int hitTestPanelCenterRay(const Camera& cam, const Elevator& elev) {
     glm::vec3 hit = O + D * t;
     glm::vec3 rel = hit - panelCenter;
 
-    // Za levi zid: lokalno u = rel.x, v = rel.y
     float u = rel.x;
     float v = rel.y;
 
@@ -418,7 +403,7 @@ static void activatePanelButton(int id) {
         int floorIdx = id;                 
         gElev->RequestFloor(floorIdx);
 
-		// Ako biras DRUGI sprat, zatvori vrata odmah da krene bez cekanja
+		// Ako klikne drugi sprat, zatvori vrata odmah da krene bez cekanja
         if (floorIdx != gElev->CurrentFloor()) {
             gBtnLit[id] = true;
             gElev->PressClose();            // radi samo ako su vrata otvorena/otvaraju se
@@ -448,20 +433,16 @@ static void mouse_button_callback(GLFWwindow* window, int button, int action, in
     int floorIdx = hitTestHallCallButtonCenterRay(*gCamera);
     if (floorIdx != -1) {
         gHallCallLit[floorIdx] = true;      // upali lampicu
-        gElev->CallToFloor(floorIdx);       // ista logika kao taster C
+        gElev->CallToFloor(floorIdx);       
     }
 }
-
-// Crta panel + dugmad (sa hover highlight) , jako komplikovano jer crta teksturu na vrh dugmeta a ne sa strabe
+// Crta panel + dugmad (sa hover highlight) 
 static void drawElevatorPanel(GLint uM, GLint uColor, GLint uUseTex, GLint uTransparent, GLint uEmissive,
     const GLuint* btnTextures, const Elevator& elev)
 {
-    // --- Jedan mali VAO/VBO za "nalepnicu" (quad) sa ispravnim atributima:
-    // layout(location=0)=pos, (1)=col, (2)=tex
     static GLuint sQuadVAO = 0, sQuadVBO = 0;
     if (sQuadVAO == 0)
     {
-        // 2 trougla, quad u XY ravni, UV 0..1, boja bela
         const float quad[] = {
             //  x     y    z      r g b a        u   v
             -0.5f,-0.5f,0.0f,   1,1,1,1,      0,0,
@@ -505,7 +486,7 @@ static void drawElevatorPanel(GLint uM, GLint uColor, GLint uUseTex, GLint uTran
 
     glm::vec3 panelCenter(shaftX, cabinBaseY + 1.2f, panelCenterZ);
 
-    // 1) Pozadina panela
+    // Pozadina panela
     glUniform1i(uUseTex, 0);
     glUniform1i(uTransparent, 0);
     glUniform4f(uColor, 0.15f, 0.15f, 0.17f, 1.0f);
@@ -525,7 +506,7 @@ static void drawElevatorPanel(GLint uM, GLint uColor, GLint uUseTex, GLint uTran
             panelCenter.z + N.z * faceOffset
         );
 
-        // 2) Telo dugmeta (bez teksture)
+        // Telo dugmeta (bez teksture)
         glUniform1i(uUseTex, 0);
         glUniform1i(uTransparent, 0);
         if (lit) {
@@ -547,7 +528,7 @@ static void drawElevatorPanel(GLint uM, GLint uColor, GLint uUseTex, GLint uTran
         glUniform3f(uEmissive, 0.0f, 0.0f, 0.0f);
 
 
-        // 3) Ikonica (tekstura) kao JEDAN QUAD na PREDNJOJ strani dugmeta
+        // Ikonica (tekstura) kao jedan quad na prednjoj strani dugmeta
         GLuint tex = btnTextures[b.id];
         if (tex != 0)
         {
@@ -577,7 +558,6 @@ static void drawElevatorPanel(GLint uM, GLint uColor, GLint uUseTex, GLint uTran
     glBindVertexArray((GLuint)prevVAO);
 }
 
-// Forward declaration
 static void initQuad();
 
 // HUD crosshair
@@ -601,7 +581,7 @@ static void drawCrosshairHUD(GLint uM, GLint uV, GLint uP, GLint uColor) {
     if (prevDepthTest) glEnable(GL_DEPTH_TEST);
 }
 
-// Draw ime.png texture in upper left corner
+// Potpis
 static void drawImeTexture(GLint uM, GLint uV, GLint uP, GLint uUseTex, GLint uColor, GLint uTransparent, GLuint texIme) {
     if (texIme == 0) return;
     
@@ -610,24 +590,19 @@ static void drawImeTexture(GLint uM, GLint uV, GLint uP, GLint uUseTex, GLint uC
     glDisable(GL_DEPTH_TEST);
     glDisable(GL_CULL_FACE);
     
-    // Save previous VAO
     GLint prevVAO = 0;
     glGetIntegerv(GL_VERTEX_ARRAY_BINDING, &prevVAO);
     
-    // Use orthographic projection for screen space
     glm::mat4 V2(1.0f);
     glm::mat4 P2 = glm::ortho(-1.0f, 1.0f, -1.0f, 1.0f, -1.0f, 1.0f);
     
     glUniformMatrix4fv(uV, 1, GL_FALSE, glm::value_ptr(V2));
     glUniformMatrix4fv(uP, 1, GL_FALSE, glm::value_ptr(P2));
     
-    // Position in upper left corner (normalized coordinates)
-    // Upper left: x = -1 + margin, y = 1 - margin
-    float margin = 0.15f; // margin from edge
-    float size = 0.2f; // size of texture quad
+	float margin = 0.05f; // margina od ivica ekrana
+	float size = 0.2f; // velicina teksture
     glm::vec3 pos(-1.0f + margin + size * 0.5f, 1.0f - margin - size * 0.5f, 0.0f);
     
-    // Setup texture
     glUniform1i(uUseTex, 1);
     glUniform1i(uTransparent, 1);
     glUniform4f(uColor, 1.0f, 1.0f, 1.0f, 1.0f);
@@ -635,7 +610,6 @@ static void drawImeTexture(GLint uM, GLint uV, GLint uP, GLint uUseTex, GLint uC
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, texIme);
     
-    // Create transformation matrix
     glm::mat4 M(1.0f);
     M = glm::translate(M, pos);
     M = glm::scale(M, glm::vec3(size, size, 1.0f));
@@ -656,7 +630,6 @@ static void drawImeTexture(GLint uM, GLint uV, GLint uP, GLint uUseTex, GLint uC
         glCullFace(GL_BACK);
     }
 }
-
 // Tekstura oznake sprata iznad lifta
 static void drawFloorSign(GLint uM, GLint uUseTex, GLint uColor, GLint uTransparent,
     GLuint texture, const glm::vec3& pos, float width, float height) {
@@ -673,8 +646,6 @@ static void drawFloorSign(GLint uM, GLint uUseTex, GLint uColor, GLint uTranspar
         glUniform1i(uTransparent, 0);
     }
 }
-// za iscrtavanje tekstura preko dugmadi na panelu
-// (gQuadVAO and gQuadVBO are now defined at the top of the file)
 
 static void initQuad()
 {
@@ -750,8 +721,7 @@ int main() {
     int wWidth = mode->width;
     int wHeight = mode->height;
 
-    // Fullscreen window (pravi fullscreen, ne samo maximize)
-    GLFWwindow* window = glfwCreateWindow(wWidth, wHeight, "Lift 3D - Etapa 2", monitor, nullptr);
+    GLFWwindow* window = glfwCreateWindow(wWidth, wHeight, "Lift 3D", monitor, nullptr);
     if (!window) {
         std::cout << "Prozor nije napravljen.\n";
         glfwTerminate();
@@ -774,7 +744,7 @@ int main() {
 
     glViewport(0, 0, wWidth, wHeight);
 
-    // Initialize depth test and culling state
+	// Inicijalizacija deepth testa i back-face culling-a 
     if (gDepthTestEnabled) {
         glEnable(GL_DEPTH_TEST);
     } else {
@@ -805,7 +775,6 @@ int main() {
     GLint uLightPos0 = glGetUniformLocation(shader, "uLightPos[0]");
     GLint uLightColor0 = glGetUniformLocation(shader, "uLightColor[0]");
     GLint uLightIntensity0 = glGetUniformLocation(shader, "uLightIntensity[0]");
-
 
     // default stanje
     glUniform1i(uTex, 0);
@@ -845,8 +814,7 @@ int main() {
     GLuint texIme = loadImageToTexture("res/ime.png");
 
     Shader modelShader("model_lit.vert", "model_lit.frag");
-
-    // LAMPA (isti model koristiš na svakom spratu + u kabini)
+    // LAMPA
     Model mdlLamp("res/models/lamp/lampa.obj");
 
     // 3 razlicite biljke
@@ -854,22 +822,20 @@ int main() {
     Model mdlPlantB("res/models/plants/plantB/plant.obj");
     Model mdlPlantC("res/models/plants/plantC/plant.obj");
 
-    // ---------- MODEL SCALE (ručno podešeno po realnim dimenzijama modela) ----------
-    const float S_LAMP = 0.58f;   // lampa: ~0.55m visina
+    // ---------- Biljke model scale ----------
+    const float S_LAMP = 0.58f;   // lampa
     const float S_PLANT_A = 1.326f; // plantA: ona niska slatka
     const float S_PLANT_B = 1.426f; // plantB: bela saksija
     const float S_PLANT_C = 0.126f;  // glina iz minecraft saksija
 
-    // da biljke "sednu" na pod (jer neki modeli imaju minY < 0)
+    // da bi se spustile na pod
     const float PLANT_A_MINY = -0.04f;
     const float PLANT_B_MINY = -0.45f;
     const float PLANT_C_MINY = -0.036059f;
 
-    // za kačenje lampe uz plafon (maxY iz .obj)
+    // za kacenje lampe na plafon
     const float LAMP_MAXY = 1.172644f;
 
-
-    // bar 1 biljka po spratu, ukupno bar 3 razlicite
     Model* plants[NUM_FLOORS] = {
         &mdlPlantA, &mdlPlantB, &mdlPlantC, &mdlPlantA, &mdlPlantB, &mdlPlantC, &mdlPlantA, &mdlPlantB
     };
@@ -942,7 +908,6 @@ int main() {
     glBindBuffer(GL_ARRAY_BUFFER, 0);
     glBindVertexArray(0);
 
-    // Uniform lokacije
     int uM = glGetUniformLocation(shader, "uM");
     int uV = glGetUniformLocation(shader, "uV");
     int uP = glGetUniformLocation(shader, "uP");
@@ -966,8 +931,6 @@ int main() {
             modelShader.setMat4("uM", MP);
 
             plant->Draw(modelShader);
-
-            // vrati stanje za “basic” geometriju
             glUseProgram(shader);
             glBindVertexArray(VAO);
         };
@@ -977,12 +940,10 @@ int main() {
         float current = (float)glfwGetTime();
         gDeltaTime = current - gLastFrame;
         
-        // Frame limiter: wait if we're running too fast to maintain 75 FPS
+        // Frame limiter
         if (gDeltaTime < FRAME_TIME) {
             float sleepTime = FRAME_TIME - gDeltaTime;
-            // Use glfwWaitEventsTimeout to wait while still processing events
             glfwWaitEventsTimeout(sleepTime);
-            // Recalculate time after wait
             current = (float)glfwGetTime();
             gDeltaTime = current - gLastFrame;
         }
@@ -991,7 +952,22 @@ int main() {
 
         processInput(window);
         elevator.Update(gDeltaTime);
-        // STOP i VENT su realno “upaljeni” dok traju
+
+        // --- BLOKIRAJ ULAZ U LIFT KAD SU VRATA ZATVORENA  ---
+        if (gCamera && gElev && !gInElevator) {
+            float wallX = HALL_W * 0.5f;
+            float blockX = wallX - 0.25f;
+            bool atFloor = gElev->IsExactlyAtFloor(floorFromCameraY());
+            float open = atFloor ? gElev->DoorOpen() : 0.0f;
+            bool inPortalZ = (std::fabs(gCamera->Position.z) < (PORTAL_W * 0.5f - 0.05f));
+            bool canPass = (open > 0.80f) && inPortalZ;
+
+            if (!canPass && gCamera->Position.x > blockX) {
+                gCamera->Position.x = blockX;
+            }
+        }
+
+        // STOP i VENT su realno upaljeni dok traju
         gBtnLit[BTN_STOP] = (elevator.State() == ElevatorState::Stopped);
         gBtnLit[BTN_VENT] = elevator.VentOn();
 
@@ -1001,7 +977,7 @@ int main() {
 
         bool fullyOpen = (elevator.DoorOpen() > 0.99f);
 
-        // detektuj prelaz "nije bilo potpuno otvoreno" -> "sad je potpuno otvoreno"
+        // detektuj prelaz nije bilo potpuno otvoreno -> sad je potpuno otvoreno
         if (fullyOpen && !sWasFullyOpen) {
             int idx = (int)std::round(elevator.CabinBaseY() / FLOOR_H);
             if (idx < 0) idx = 0;
@@ -1017,33 +993,30 @@ int main() {
         sWasFullyOpen = fullyOpen;
 
 
-        // --- Unutar main while petlje, pre crtanja ---
-
-        // 1. Provera da li si ušla u lift hodanjem
+        // 1. Provera da li je usao u lift hodanjem
         if (!gInElevator) {
             float shaftX = getShaftX();
-            // Ako je kamera prešla granicu hodnika i ušla u prostor kabine po X osi
+            // Ako je kamera presla granicu hodnika i usla u prostor kabine po X osi
             // i ako su vrata otvorena (to proverava isAtElevatorEntrance)
             if (gCamera->Position.x > (HALL_W * 0.5f - 0.2f) && isAtElevatorEntrance(*gCamera, *gElev)) {
                 gInElevator = true;
             }
         }
-        // 2. Provera da li si izašla iz lifta hodanjem
+        // 2. Provera da li si izasao iz lifta hodanjem
         else {
             float wallX = HALL_W * 0.5f;
-            // Ako si u liftu, ali si krenula nazad ka hodniku (X osa se smanjuje)
+            // Ako je u liftu, ali je krenuo nazad ka hodniku - X osa se smanjuje
             if (gCamera->Position.x < (wallX - 0.3f)) {
                 gInElevator = false;
             }
         }
 
-        // 3. Logika za "zaključavanje" unutar lifta dok se on kreće ili dok si unutra
+        // 3. Logika za zakljucavanje unutar lifta dok se on krece ili dok si unutra
         if (gInElevator && gCamera) {
-            // Y osa uvek prati pod lifta
             gCamera->Position.y = elevator.CabinBaseY() + 1.7f;
 
-            // OGRANIČENJE KRETANJA UNUTAR KABINE
-            // Ne dozvoljavamo kameri da izađe kroz zadnji ili bočne zidove kabine
+			// ----- Ograncienje kretanja dok je u liftu -----
+            // Ne dozvoljavamo kameri da izadje kroz zadnji ili bocne zidove kabine
             float shaftX = getShaftX();
             float minX = shaftX - CABIN_W * 0.4f; // blizu vrata
             float maxX = shaftX + CABIN_W * 0.4f; // zadnji zid
@@ -1051,7 +1024,7 @@ int main() {
             float maxZ = CABIN_D * 0.4f;
 
             if (gCamera->Position.x > maxX) gCamera->Position.x = maxX;
-            // Ako su vrata zatvorena, ne možeš ni napred (ka hodniku)
+            // Ako su vrata zatvorena, ne moze ni ka hodniku(spratu)
             if (gElev->DoorOpen() < 0.1f) {
                 if (gCamera->Position.x < minX) gCamera->Position.x = minX;
             }
@@ -1063,8 +1036,7 @@ int main() {
         if (gCamera && gElev && gInElevator) {
             gHoverBtn = hitTestPanelCenterRay(*gCamera, *gElev);
         }
-
-        // Apply depth test and culling settings at the start of each frame
+		// Primena depth testa i back-face culling-a pre crtanja scene
         if (gDepthTestEnabled) {
             glEnable(GL_DEPTH_TEST);
         } else {
@@ -1082,7 +1054,6 @@ int main() {
 
         glUseProgram(shader);
 
-        // Perspektiva (spec traži perspektivu)
         int fbw, fbh;
         glfwGetFramebufferSize(window, &fbw, &fbh);
         float aspect = (fbh == 0) ? 1.0f : (float)fbw / (float)fbh;
@@ -1096,21 +1067,21 @@ int main() {
         std::vector<PointLightCPU> lights;
         lights.reserve(NUM_FLOORS + 1 + 12);
 
-        // boja svetla (toplo belo)
+        // boja svetla
         glm::vec3 lampColor(1.0f, 0.96f, 0.88f);
 
-        // 1) LAMPE PO SPRATOVIMA (svaki sprat ima lampu + point light)
+        // 1) LAMPE PO SPRATOVIMA 
         for (int i = 0; i < NUM_FLOORS; i++) {
             float y = i * FLOOR_H;
             lights.push_back({ glm::vec3(0.0f, y + WALL_H - 0.20f, 0.0f), lampColor, 1.10f });
         }
 
-        // 2) LAMPA U KABINI (svetlo se “vozi” sa liftom)
+        // 2) LAMPA U KABINI 
         float shaftX = getShaftX();
         float cabinBaseY = elevator.CabinBaseY();
         lights.push_back({ glm::vec3(shaftX, cabinBaseY + CABIN_H - 0.18f, 0.0f), lampColor, 1.10f });
 
-        // 3) DUGMIĆI NA PANELU KAO SLABA SVETLA (samo kad su upaljeni)
+        // 3) DUGMICI NA PANELU SLABA SVETLA
         {
             float leftWallZ = -CABIN_D * 0.5f;
             glm::vec3 panelCenter(shaftX, cabinBaseY + 1.2f, leftWallZ + (PANEL_THICK * 0.5f) + 0.01f);
@@ -1123,13 +1094,11 @@ int main() {
             }
         }
 
-        // --- Upload svetala u BASIC shader ---
         glUseProgram(shader);
         glUniform3f(uViewPos, camera.Position.x, camera.Position.y, camera.Position.z);
         glUniform3f(uEmissive, 0.0f, 0.0f, 0.0f);
         UploadPointLights(shader, uLightCount, uLightPos0, uLightColor0, uLightIntensity0, lights);
 
-        // --- Upload svetala u MODEL shader ---
         static bool modelUniformsCached = false;
         static GLint muViewPos, muLightCount, muLightPos0, muLightColor0, muLightIntensity0;
 
@@ -1148,17 +1117,14 @@ int main() {
         modelShader.setVec3("uViewPos", camera.Position);
         UploadPointLights(modelShader.ID, muLightCount, muLightPos0, muLightColor0, muLightIntensity0, lights);
 
-        // vrati se na basic pre crtanja kocki
         glUseProgram(shader);
-
-
         glBindVertexArray(VAO);
 
         // ---------- Spratovi ----------
         for (int i = 0; i < NUM_FLOORS; i++) {
             float y = i * FLOOR_H;
 
-            // POD (tekstura)
+            // POD TEKSTURA
             if (texFloor != 0) {
                 glUniform1i(uUseTex, 1);
                 glActiveTexture(GL_TEXTURE0);
@@ -1176,11 +1142,10 @@ int main() {
                 glm::vec3(HALL_W, SLAB_THICK, HALL_D)
             );
 
-            // posle poda vrati na "bez teksture" ako želiš da sledeće bude boja
             glUniform1i(uUseTex, 0);
             glUniform2f(uTexScale, 1.0f, 1.0f);
 
-            // ZIDOVI (tekstura)
+            // ZIDOVI tekstura
             if (texWall != 0) {
                 glUniform1i(uUseTex, 1);
                 glActiveTexture(GL_TEXTURE0);
@@ -1204,18 +1169,15 @@ int main() {
                 glm::vec3(-HALL_W * 0.5f, y + WALL_H * 0.5f, 0.0f),
                 glm::vec3(WALL_THICK, WALL_H, HALL_D)
             );
-
-            // PREDNJI ZID (na +Z) - Zatvara hodnik sa suprotne strane od zadnjeg zida
+            // PREDNJI ZID (na +Z) 
             drawBox(uM,
                 glm::vec3(0.0f, y + WALL_H * 0.5f, HALL_D * 0.5f),
                 glm::vec3(HALL_W, WALL_H, WALL_THICK)
             );
 
             // DESNI ZID (na +X) sa otvorom ka liftu
-            // Ovaj zid se gleda iz hodnika (iz -X), pa treba obrnuti front face
-
             float wallX = HALL_W * 0.5f;
-            float portalYCenter = y + PORTAL_H * 0.5f;      // otvor počinje od poda sprata
+            float portalYCenter = y + PORTAL_H * 0.5f;      
             float topH = WALL_H - PORTAL_H;
             if (topH < 0.1f) topH = 0.1f;
 
@@ -1225,7 +1187,6 @@ int main() {
                 glm::vec3(WALL_THICK, topH, HALL_D)
             );
 
-            // 2) levi bočni stub (oko otvora) - po Z osi
             float sideW = (HALL_D - PORTAL_W) * 0.5f;
             if (sideW < 0.1f) sideW = 0.1f;
 
@@ -1266,15 +1227,14 @@ int main() {
             drawBox(uM, glm::vec3(doorX, portalYCenter, rightZ),
                 glm::vec3(HALL_DOOR_THICK, PORTAL_H, wingW));
 
-
-            // ---- Spoljni "call" taster pored vrata ----
+            // ---- Spoljni call taster pored vrata ----
             glUniform1i(uUseTex, 0);              
             glUniform2f(uTexScale, 1.0f, 1.0f);
 
             {
                 float btnX = wallX - (WALL_THICK * 0.5f) - (HALL_CALL_BTN_THICK * 0.5f) - 0.01f;
                 float btnY = y + HALL_CALL_BTN_Y;
-                float btnZ = -(PORTAL_W * 0.5f + sideW * 0.2f);    // desna strana otvora po Z
+                float btnZ = -(PORTAL_W * 0.5f + sideW * 0.2f);    
 
                 if (gHallCallLit[i]) {
                     glUniform4f(uColor, 0.85f, 0.85f, 0.85f, 1.0f);
@@ -1288,7 +1248,6 @@ int main() {
                     glm::vec3(HALL_CALL_BTN_THICK, HALL_CALL_BTN_H, HALL_CALL_BTN_W)
                 );
             }
-
             // OZNAKA SPRATA iznad vrata
             float signWidth = 0.4f;   // sirina tablice
             float signHeight = 0.25f;  // visina tablice
@@ -1302,7 +1261,7 @@ int main() {
                 glm::vec3(signX, signY, 0.0f),
                 signWidth, signHeight);
 
-            // --- MODELI NA SPRATU: lampa + biljka ---
+            // --- MODELI NA SPRATU: lampa i biljke ---
             modelShader.use();
 
             // lampa na plafonu sprata
@@ -1318,8 +1277,7 @@ int main() {
                 glUseProgram(shader);
                 glBindVertexArray(VAO);
             }
-
-            // --- 3 biljke u 3 ćoška hola na svakom spratu ---
+            // --- 3 biljke u 3 coska  na svakom spratu ---
 
             // uglovi (margine od zidova)
             const float xL = -HALL_W * 0.5f + 0.8f;
@@ -1362,20 +1320,16 @@ int main() {
                 glUseProgram(shader);
                 glBindVertexArray(VAO);
             }
-
-            // vrati se na basic shader da ostatak scene radi normalno
             glUseProgram(shader);
-
-
         }
 
-        // ---------- Okvir okna lifta  ----------
+        // Okvir okna lifta 
         shaftX = getShaftX();
-        // ---------- Kabina lifta ----------
+        // Kabina lifta
         cabinBaseY = elevator.CabinBaseY();
         float openCabin = elevator.DoorOpen();
 
-        // --- LAMPA U KABINI (model) ---
+        // --- MODEL LAMPE U KABINI  ---
         modelShader.use();
         {
             glm::mat4 MC(1.0f);
@@ -1388,7 +1342,6 @@ int main() {
             glActiveTexture(GL_TEXTURE0);
         }
         glUseProgram(shader);
-
 
         // telo kabine
         if (texWall != 0) {
@@ -1424,12 +1377,10 @@ int main() {
         );
 
         // 3. DESNI ZID (na kom stoji panel, to je +Z strana)
-        // Ovaj zid se gleda iz kabine (iz -Z), pa treba obrnuti front face
         drawBox(uM,
             glm::vec3(shaftX, cabinBaseY + CABIN_H * 0.5f, CABIN_D * 0.5f),
             glm::vec3(CABIN_W, CABIN_H, ct)
         );
-
 
         // 4. PLAFON
         drawBox(uM,
@@ -1437,7 +1388,7 @@ int main() {
             glm::vec3(CABIN_W, ct, CABIN_D)
         );
 
-        // POD KABINE - samo tamno siva boja (bez teksture)
+        // pod KABINE
         glUniform1i(uUseTex, 0);
         glUniform2f(uTexScale, 1.0f, 1.0f);
         glUniform4f(uColor, 0.18f, 0.18f, 0.19f, 1.0f);
@@ -1475,8 +1426,6 @@ int main() {
         glUniform4f(uColor, 0.9f, 0.2f, 0.9f, 1.0f);
 
         drawCrosshairHUD(uM, uV, uP, uColor);
-        
-        // Draw ime.png texture in upper left corner
         drawImeTexture(uM, uV, uP, uUseTex, uColor, uTransparent, texIme);
         
         glfwSwapBuffers(window);
