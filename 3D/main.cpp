@@ -1322,6 +1322,33 @@ int main() {
             }
             glUseProgram(shader);
         }
+        // ---------- Plafon na poslednjem spratu (6. sprat = i=7) ----------
+        {
+            float topY = (NUM_FLOORS)*FLOOR_H;            // visina "sledećeg" sprata
+            float ceilingCenterY = topY - SLAB_THICK * 0.5f; // isto kao centar poda tog sledećeg sprata
+
+            // isti materijal kao pod (može i posebna tekstura ako hoćeš)
+            if (texFloor != 0) {
+                glUniform1i(uUseTex, 1);
+                glActiveTexture(GL_TEXTURE0);
+                glBindTexture(GL_TEXTURE_2D, texFloor);
+                glUniform2f(uTexScale, 1.0f, 1.0f);
+                glUniform4f(uColor, 1, 1, 1, 1);
+            }
+            else {
+                glUniform1i(uUseTex, 0);
+                glUniform4f(uColor, 0.75f, 0.75f, 0.78f, 1.0f);
+            }
+
+            drawBox(uM,
+                glm::vec3(0.0f, ceilingCenterY, 0.0f),
+                glm::vec3(HALL_W, SLAB_THICK, HALL_D)
+            );
+
+            glUniform1i(uUseTex, 0);
+            glUniform2f(uTexScale, 1.0f, 1.0f);
+}
+
 
         // Okvir okna lifta 
         shaftX = getShaftX();
