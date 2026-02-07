@@ -133,6 +133,17 @@ static float gLastY = 0.0f;
 static float gDeltaTime = 0.0f;
 static float gLastFrame = 0.0f;
 
+// Frame limiter
+static const float TARGET_FPS = 75.0f;
+static const float FRAME_TIME = 1.0f / TARGET_FPS;
+
+// Depth test and back-face culling settings
+static bool gDepthTestEnabled = true;
+static bool gBackFaceCullingEnabled = false;
+
+// Quad VAO for texture rendering (moved here so it's accessible to drawImeTexture)
+static GLuint gQuadVAO = 0, gQuadVBO = 0;
+
 static void framebuffer_size_callback(GLFWwindow* window, int width, int height) {
     glViewport(0, 0, width, height);
 }
@@ -205,6 +216,30 @@ static bool isAtElevatorEntrance(const Camera& cam, const Elevator& elev) {
 
 static void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods) {
     if (action != GLFW_PRESS) return;
+    
+    // Depth test toggle: T
+    if (key == GLFW_KEY_T) {
+        gDepthTestEnabled = !gDepthTestEnabled;
+        if (gDepthTestEnabled) {
+            glEnable(GL_DEPTH_TEST);
+        } else {
+            glDisable(GL_DEPTH_TEST);
+        }
+        return;
+    }
+    
+    // Back-face culling toggle: B
+    if (key == GLFW_KEY_B) {
+        gBackFaceCullingEnabled = !gBackFaceCullingEnabled;
+        if (gBackFaceCullingEnabled) {
+            glEnable(GL_CULL_FACE);
+            glCullFace(GL_BACK);
+        } else {
+            glDisable(GL_CULL_FACE);
+        }
+        return;
+    }
+    
     if (!gElev) return;
 
     // Spratovi: F1..F8 = SU, PR, 1,2,3,4,5,6
@@ -274,6 +309,15 @@ static void drawBox(GLint uM, const glm::vec3& pos, const glm::vec3& scale) {
     M = glm::scale(M, scale);
     glUniformMatrix4fv(uM, 1, GL_FALSE, glm::value_ptr(M));
     drawCube();
+}
+
+// helper za crtanje "kvadra" sa obrnutim front face-om (za zidove koji se gledaju iznutra)
+static void drawBoxReversed(GLint uM, const glm::vec3& pos, const glm::vec3& scale) {
+    GLint prevFrontFace;
+    glGetIntegerv(GL_FRONT_FACE, &prevFrontFace);
+    glFrontFace(GL_CW); // Obrni front face za ovaj zid
+    drawBox(uM, pos, scale);
+    glFrontFace(prevFrontFace); // Vrati nazad
 }
 
 static glm::vec3 cameraForwardFromView(const Camera& cam) {
@@ -533,8 +577,12 @@ static void drawElevatorPanel(GLint uM, GLint uColor, GLint uUseTex, GLint uTran
     glBindVertexArray((GLuint)prevVAO);
 }
 
+// Forward declaration
+static void initQuad();
+
 // HUD crosshair
 static void drawCrosshairHUD(GLint uM, GLint uV, GLint uP, GLint uColor) {
+    bool prevDepthTest = gDepthTestEnabled;
     glDisable(GL_DEPTH_TEST);
 
     glm::mat4 V2(1.0f);
@@ -550,7 +598,63 @@ static void drawCrosshairHUD(GLint uM, GLint uV, GLint uP, GLint uColor) {
     // vertikalna linija
     drawBox(uM, glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.004f, 0.06f, 0.001f));
 
-    glEnable(GL_DEPTH_TEST);
+    if (prevDepthTest) glEnable(GL_DEPTH_TEST);
+}
+
+// Draw ime.png texture in upper left corner
+static void drawImeTexture(GLint uM, GLint uV, GLint uP, GLint uUseTex, GLint uColor, GLint uTransparent, GLuint texIme) {
+    if (texIme == 0) return;
+    
+    bool prevDepthTest = gDepthTestEnabled;
+    bool prevCulling = gBackFaceCullingEnabled;
+    glDisable(GL_DEPTH_TEST);
+    glDisable(GL_CULL_FACE);
+    
+    // Save previous VAO
+    GLint prevVAO = 0;
+    glGetIntegerv(GL_VERTEX_ARRAY_BINDING, &prevVAO);
+    
+    // Use orthographic projection for screen space
+    glm::mat4 V2(1.0f);
+    glm::mat4 P2 = glm::ortho(-1.0f, 1.0f, -1.0f, 1.0f, -1.0f, 1.0f);
+    
+    glUniformMatrix4fv(uV, 1, GL_FALSE, glm::value_ptr(V2));
+    glUniformMatrix4fv(uP, 1, GL_FALSE, glm::value_ptr(P2));
+    
+    // Position in upper left corner (normalized coordinates)
+    // Upper left: x = -1 + margin, y = 1 - margin
+    float margin = 0.15f; // margin from edge
+    float size = 0.2f; // size of texture quad
+    glm::vec3 pos(-1.0f + margin + size * 0.5f, 1.0f - margin - size * 0.5f, 0.0f);
+    
+    // Setup texture
+    glUniform1i(uUseTex, 1);
+    glUniform1i(uTransparent, 1);
+    glUniform4f(uColor, 1.0f, 1.0f, 1.0f, 1.0f);
+    
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, texIme);
+    
+    // Create transformation matrix
+    glm::mat4 M(1.0f);
+    M = glm::translate(M, pos);
+    M = glm::scale(M, glm::vec3(size, size, 1.0f));
+    glUniformMatrix4fv(uM, 1, GL_FALSE, glm::value_ptr(M));
+    
+    // Use quad VAO
+    initQuad();
+    glBindVertexArray(gQuadVAO);
+    glDrawArrays(GL_TRIANGLES, 0, 6);
+    glBindVertexArray((GLuint)prevVAO);
+    
+    // Restore state
+    glUniform1i(uUseTex, 0);
+    glUniform1i(uTransparent, 0);
+    if (prevDepthTest) glEnable(GL_DEPTH_TEST);
+    if (prevCulling) {
+        glEnable(GL_CULL_FACE);
+        glCullFace(GL_BACK);
+    }
 }
 
 // Tekstura oznake sprata iznad lifta
@@ -570,22 +674,23 @@ static void drawFloorSign(GLint uM, GLint uUseTex, GLint uColor, GLint uTranspar
     }
 }
 // za iscrtavanje tekstura preko dugmadi na panelu
-static GLuint gQuadVAO = 0, gQuadVBO = 0;
+// (gQuadVAO and gQuadVBO are now defined at the top of the file)
 
 static void initQuad()
 {
     if (gQuadVAO) return;
 
-    // pozicije + UV (quad u XY ravni, centriran u 0)
+    // pozicije + boja + UV (quad u XY ravni, centriran u 0)
+    // Format: pos(3) + col(4) + tex(2) = 9 floats per vertex
     float v[] = {
-        // x, y, z,   u, v
-        -0.5f,-0.5f,0,  0,0,
-         0.5f,-0.5f,0,  1,0,
-         0.5f, 0.5f,0,  1,1,
+        // x, y, z,      r, g, b, a,    u, v
+        -0.5f,-0.5f,0,   1,1,1,1,      0,0,
+         0.5f,-0.5f,0,   1,1,1,1,      1,0,
+         0.5f, 0.5f,0,   1,1,1,1,      1,1,
 
-        -0.5f,-0.5f,0,  0,0,
-         0.5f, 0.5f,0,  1,1,
-        -0.5f, 0.5f,0,  0,1,
+        -0.5f,-0.5f,0,   1,1,1,1,      0,0,
+         0.5f, 0.5f,0,   1,1,1,1,      1,1,
+        -0.5f, 0.5f,0,   1,1,1,1,      0,1,
     };
 
     glGenVertexArrays(1, &gQuadVAO);
@@ -595,12 +700,18 @@ static void initQuad()
     glBindBuffer(GL_ARRAY_BUFFER, gQuadVBO);
     glBufferData(GL_ARRAY_BUFFER, sizeof(v), v, GL_STATIC_DRAW);
 
+    const GLsizei stride = (3 + 4 + 2) * (GLsizei)sizeof(float);
+
     glEnableVertexAttribArray(0); // pos
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)0);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, stride, (void*)0);
 
-    glEnableVertexAttribArray(1); // uv
-    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)(3 * sizeof(float)));
+    glEnableVertexAttribArray(1); // col
+    glVertexAttribPointer(1, 4, GL_FLOAT, GL_FALSE, stride, (void*)(3 * sizeof(float)));
 
+    glEnableVertexAttribArray(2); // tex
+    glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, stride, (void*)(7 * sizeof(float)));
+
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
     glBindVertexArray(0);
 }
 
@@ -663,7 +774,20 @@ int main() {
 
     glViewport(0, 0, wWidth, wHeight);
 
-    glEnable(GL_DEPTH_TEST);
+    // Initialize depth test and culling state
+    if (gDepthTestEnabled) {
+        glEnable(GL_DEPTH_TEST);
+    } else {
+        glDisable(GL_DEPTH_TEST);
+    }
+    
+    if (gBackFaceCullingEnabled) {
+        glEnable(GL_CULL_FACE);
+        glCullFace(GL_BACK);
+    } else {
+        glDisable(GL_CULL_FACE);
+    }
+    
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
@@ -852,6 +976,17 @@ int main() {
     while (!glfwWindowShouldClose(window)) {
         float current = (float)glfwGetTime();
         gDeltaTime = current - gLastFrame;
+        
+        // Frame limiter: wait if we're running too fast to maintain 75 FPS
+        if (gDeltaTime < FRAME_TIME) {
+            float sleepTime = FRAME_TIME - gDeltaTime;
+            // Use glfwWaitEventsTimeout to wait while still processing events
+            glfwWaitEventsTimeout(sleepTime);
+            // Recalculate time after wait
+            current = (float)glfwGetTime();
+            gDeltaTime = current - gLastFrame;
+        }
+        
         gLastFrame = current;
 
         processInput(window);
@@ -929,6 +1064,20 @@ int main() {
             gHoverBtn = hitTestPanelCenterRay(*gCamera, *gElev);
         }
 
+        // Apply depth test and culling settings at the start of each frame
+        if (gDepthTestEnabled) {
+            glEnable(GL_DEPTH_TEST);
+        } else {
+            glDisable(GL_DEPTH_TEST);
+        }
+        
+        if (gBackFaceCullingEnabled) {
+            glEnable(GL_CULL_FACE);
+            glCullFace(GL_BACK);
+        } else {
+            glDisable(GL_CULL_FACE);
+        }
+        
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
         glUseProgram(shader);
@@ -1063,6 +1212,7 @@ int main() {
             );
 
             // DESNI ZID (na +X) sa otvorom ka liftu
+            // Ovaj zid se gleda iz hodnika (iz -X), pa treba obrnuti front face
 
             float wallX = HALL_W * 0.5f;
             float portalYCenter = y + PORTAL_H * 0.5f;      // otvor počinje od poda sprata
@@ -1070,7 +1220,7 @@ int main() {
             if (topH < 0.1f) topH = 0.1f;
 
             // 1) deo iznad otvora
-            drawBox(uM,
+            drawBoxReversed(uM,
                 glm::vec3(wallX, portalYCenter + PORTAL_H * 0.5f + topH * 0.5f, 0.0f),
                 glm::vec3(WALL_THICK, topH, HALL_D)
             );
@@ -1080,13 +1230,13 @@ int main() {
             if (sideW < 0.1f) sideW = 0.1f;
 
             // stub na -Z strani otvora
-            drawBox(uM,
+            drawBoxReversed(uM,
                 glm::vec3(wallX, portalYCenter, -(PORTAL_W * 0.5f + sideW * 0.5f)),
                 glm::vec3(WALL_THICK, PORTAL_H, sideW)
             );
 
             // stub na +Z strani otvora
-            drawBox(uM,
+            drawBoxReversed(uM,
                 glm::vec3(wallX, portalYCenter, +(PORTAL_W * 0.5f + sideW * 0.5f)),
                 glm::vec3(WALL_THICK, PORTAL_H, sideW)
             );
@@ -1274,7 +1424,8 @@ int main() {
         );
 
         // 3. DESNI ZID (na kom stoji panel, to je +Z strana)
-        drawBox(uM,
+        // Ovaj zid se gleda iz kabine (iz -Z), pa treba obrnuti front face
+        drawBoxReversed(uM,
             glm::vec3(shaftX, cabinBaseY + CABIN_H * 0.5f, CABIN_D * 0.5f),
             glm::vec3(CABIN_W, CABIN_H, ct)
         );
@@ -1323,6 +1474,10 @@ int main() {
         glUniform4f(uColor, 0.9f, 0.2f, 0.9f, 1.0f);
 
         drawCrosshairHUD(uM, uV, uP, uColor);
+        
+        // Draw ime.png texture in upper left corner
+        drawImeTexture(uM, uV, uP, uUseTex, uColor, uTransparent, texIme);
+        
         glfwSwapBuffers(window);
         glfwPollEvents();
     }
